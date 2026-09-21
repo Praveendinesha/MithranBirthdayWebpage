@@ -21,6 +21,11 @@ import {
   VolumeX,
   Play,
   Square,
+  Globe,
+  RefreshCw,
+  Send,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import {
   loadInvitationData,
@@ -31,6 +36,14 @@ import {
 } from '../utils/photoStorage';
 import type { GalleryPhoto, MilestoneMonth } from '../config/invitationData';
 import { soundManager } from '../utils/audio';
+import {
+  fetchLatestGitHubSong,
+  saveSongToGitHub,
+  createDirectGitHubSongIssueUrl,
+  getCachedGitHubSong,
+  formatFriendlyTime,
+  type GitHubSongConfig,
+} from '../utils/githubSongSync';
 
 const ADMIN_PIN = 'SMS2026';
 
@@ -59,6 +72,12 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
   const [isCopiedToast, setIsCopiedToast] = useState<boolean>(false);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
 
+  // GitHub Live Song Sync State
+  const [updaterName, setUpdaterName] = useState<string>('Praveen');
+  const [ghSongConfig, setGhSongConfig] = useState<GitHubSongConfig | null>(getCachedGitHubSong());
+  const [isSyncingGitHubSong, setIsSyncingGitHubSong] = useState<boolean>(false);
+  const [gitHubSyncMsg, setGitHubSyncMsg] = useState<{ success: boolean; text: string; issueUrl?: string } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioFileInputRef = useRef<HTMLInputElement>(null);
   const currentUploadCallbackRef = useRef<((dataUrl: string) => void) | null>(null);
@@ -68,9 +87,20 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
       setFormData(loadInvitationData());
       setPinError(false);
       setIsPreviewPlaying(false);
+      setGitHubSyncMsg(null);
       if (initialTab) {
         setActiveTab(initialTab);
       }
+
+      // Fetch latest GitHub song info on open
+      fetchLatestGitHubSong().then((cfg) => {
+        if (cfg) {
+          setGhSongConfig(cfg);
+          if (cfg.updatedBy && cfg.updatedBy !== 'Admin') {
+            setUpdaterName(cfg.updatedBy);
+          }
+        }
+      });
     } else {
       if (isPreviewPlaying) {
         soundManager.stopMelody();
@@ -153,6 +183,64 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
     }
   };
 
+  const handleSaveAndSyncSong = async (customAction?: 'update' | 'remove') => {
+    soundManager.playPop();
+    setIsSyncingGitHubSong(true);
+    setGitHubSyncMsg(null);
+
+    const isRemove = customAction === 'remove' || !formData.music?.songUrl?.trim();
+    const targetSongUrl = isRemove ? '' : (formData.music?.songUrl?.trim() || '');
+    const targetTitle = isRemove ? 'Default Royal Birthday Music Box' : (formData.music?.title || 'Custom Birthday Song');
+
+    const updatedFormData: EditableInvitationData = {
+      ...formData,
+      music: {
+        ...formData.music,
+        songUrl: targetSongUrl,
+        title: targetTitle,
+      },
+    };
+
+    setFormData(updatedFormData);
+    saveInvitationData(updatedFormData);
+    onDataUpdated(updatedFormData);
+
+    try {
+      const res = await saveSongToGitHub({
+        songUrl: targetSongUrl,
+        title: targetTitle,
+        volume: formData.music?.volume ?? 0.5,
+        updatedBy: updaterName.trim() || 'Admin',
+        action: isRemove ? 'remove' : 'update',
+      });
+
+      if (res.savedToGitHub) {
+        setGitHubSyncMsg({
+          success: true,
+          text: `Saved & Broadcasted to GitHub! All live visitors will now hear ${isRemove ? 'Default Birthday Music Box' : targetTitle}.`,
+          issueUrl: res.issueUrl,
+        });
+      } else {
+        setGitHubSyncMsg({
+          success: true,
+          text: `Saved locally! Click below to publish to GitHub Issues for all live visitors.`,
+          issueUrl: res.issueUrl,
+        });
+      }
+
+      // Refresh cached song config
+      const latest = await fetchLatestGitHubSong();
+      if (latest) setGhSongConfig(latest);
+    } catch (err) {
+      setGitHubSyncMsg({
+        success: false,
+        text: 'Saved locally. Could not sync with GitHub automatically.',
+      });
+    } finally {
+      setIsSyncingGitHubSong(false);
+    }
+  };
+
   const handleSaveAll = () => {
     soundManager.playPop();
     if (isPreviewPlaying) {
@@ -164,6 +252,11 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
       onDataUpdated(formData);
       setIsSavedToast(true);
       setTimeout(() => setIsSavedToast(false), 2800);
+
+      // Also trigger GitHub sync for song if on music tab or song is set
+      if (activeTab === 'music' || formData.music?.songUrl) {
+        handleSaveAndSyncSong(formData.music?.songUrl ? 'update' : 'remove');
+      }
     } else {
       alert('Storage is full. Try uploading smaller photos or reset to defaults.');
     }
@@ -321,25 +414,22 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
                 <p className="text-xs text-gray-500 mt-1 max-w-xs">
                   Enter your client PIN to access and manage your invitation photos and details.
                 </p>
-                <div className="mt-2 inline-block px-3 py-1 rounded-full bg-pastel-blue-50 text-pastel-blue-700 text-xs font-semibold border border-pastel-blue-200">
-                  Client PIN: <strong className="font-mono text-pastel-navy-900">SMS2026</strong>
-                </div>
               </div>
 
               <form onSubmit={handlePinSubmit} className="w-full max-w-xs space-y-3">
                 <input
-                  type="text"
+                  type="password"
                   maxLength={12}
                   value={enteredPin}
                   onChange={(e) => setEnteredPin(e.target.value)}
-                  placeholder="Enter SMS2026..."
+                  placeholder="Enter PIN..."
                   autoFocus
                   className={`w-full text-center text-lg tracking-widest font-mono uppercase py-2.5 px-4 rounded-xl border ${
                     pinError ? 'border-rose-400 bg-rose-50' : 'border-gray-300 focus:border-pastel-gold-500'
                   } outline-hidden`}
                 />
                 {pinError && (
-                  <p className="text-xs text-rose-500 font-semibold">Incorrect PIN. Try SMS2026</p>
+                  <p className="text-xs text-rose-500 font-semibold">Incorrect PIN. Please try again.</p>
                 )}
 
                 <button
@@ -1002,13 +1092,52 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
                         <h4 className="font-display font-bold text-sm text-pastel-navy-900 flex items-center gap-1.5">
                           <span>Background Song & Celebration Music</span>
                           <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">
-                            Audio Suite 🎵
+                            Live Audio Broadcast 🎵
                           </span>
                         </h4>
                         <p className="text-xs text-gray-500">
-                          Configure the background music played when guests open the birthday invitation.
+                          Configure the music that automatically plays for all guests across all devices.
                         </p>
                       </div>
+                    </div>
+
+                    {/* Live Global GitHub Status Banner */}
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-pastel-blue-50 via-white to-pastel-gold-50 border border-pastel-blue-200 text-pastel-navy-900 flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 shadow-2xs">
+                          <Globe className="w-4 h-4 animate-spin-slow" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-pastel-navy-900">
+                              Live Global Audio:
+                            </span>
+                            <span className="text-xs font-semibold text-blue-700">
+                              {ghSongConfig && !ghSongConfig.isDefault && ghSongConfig.songUrl
+                                ? (ghSongConfig.title || 'Custom Track')
+                                : 'Default Royal Birthday Music Box'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-gray-500">
+                            {ghSongConfig?.updatedBy
+                              ? `Last updated by ${ghSongConfig.updatedBy} • ${formatFriendlyTime(ghSongConfig.updatedAt)}`
+                              : 'Default configuration active'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={async () => {
+                          soundManager.playPop();
+                          const fresh = await fetchLatestGitHubSong();
+                          if (fresh) setGhSongConfig(fresh);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 hover:border-blue-300 text-gray-600 hover:text-blue-700 text-[11px] font-bold flex items-center gap-1 transition-all shadow-2xs"
+                        title="Check for recent song updates from other admins"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Refresh Status</span>
+                      </button>
                     </div>
 
                     {/* Live Playing Status & Test Preview Player Card */}
@@ -1030,13 +1159,13 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
                                     : 'bg-emerald-400/20 text-emerald-300 border border-emerald-400/40'
                                 }`}
                               >
-                                {formData.music?.songUrl ? 'Custom MP3' : 'Default Music Box'}
+                                {formData.music?.songUrl ? 'Custom Song' : 'Default Music Box'}
                               </span>
                             </div>
                             <p className="text-[11px] text-blue-200/80 mt-0.5">
                               {formData.music?.songUrl
                                 ? 'Custom audio file or web URL with looping'
-                                : 'Built-in gentle Web Audio music-box melody (Royalty-free, zero loading wait)'}
+                                : 'Built-in gentle Royal Music Box chime melody (Royalty-free, zero loading delay)'}
                             </p>
                           </div>
                         </div>
@@ -1090,6 +1219,114 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
                       </div>
                     </div>
 
+                    {/* GitHub Live Broadcast Card */}
+                    <div className="p-4 rounded-2xl bg-white border border-pastel-gold-300 shadow-2xs space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h5 className="font-display font-bold text-xs uppercase tracking-wider text-pastel-gold-800 flex items-center gap-1.5">
+                          <Send className="w-3.5 h-3.5 text-pastel-gold-600" />
+                          <span>Live Broadcast & GitHub Sync</span>
+                        </h5>
+                        <span className="text-[10px] text-gray-500 font-medium">
+                          All visitors will hear this song
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
+                            Updated By (Your Name / Family)
+                          </label>
+                          <input
+                            type="text"
+                            value={updaterName}
+                            onChange={(e) => setUpdaterName(e.target.value)}
+                            placeholder="e.g. Praveen, Mom, Soundharya, SMS Family"
+                            className="w-full text-xs px-3 py-2 rounded-xl border border-gray-200 focus:border-pastel-gold-400 outline-hidden font-medium text-gray-800"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleSaveAndSyncSong(formData.music?.songUrl ? 'update' : 'remove')}
+                            disabled={isSyncingGitHubSong}
+                            className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-bold text-xs shadow-md active:scale-98 transition-all flex items-center justify-center gap-1.5"
+                          >
+                            {isSyncingGitHubSong ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <span>Syncing...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Globe className="w-3.5 h-3.5" />
+                                <span>Broadcast Song to GitHub</span>
+                              </>
+                            )}
+                          </button>
+
+                          {formData.music?.songUrl && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Revert background song to default Royal Birthday Music Box on GitHub?')) {
+                                  handleSaveAndSyncSong('remove');
+                                }
+                              }}
+                              className="py-2 px-3 rounded-xl bg-gray-100 hover:bg-rose-50 hover:text-rose-700 text-gray-600 font-bold text-xs border border-gray-200 transition-colors shadow-2xs shrink-0"
+                              title="Revert live song to default music box"
+                            >
+                              <span>Revert to Default</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Sync Feedback Message */}
+                      {gitHubSyncMsg && (
+                        <div
+                          className={`p-2.5 rounded-xl text-xs flex items-center justify-between gap-2 border ${
+                            gitHubSyncMsg.success
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : 'bg-amber-50 text-amber-800 border-amber-200'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {gitHubSyncMsg.success ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                            )}
+                            <span>{gitHubSyncMsg.text}</span>
+                          </div>
+
+                          {gitHubSyncMsg.issueUrl ? (
+                            <a
+                              href={gitHubSyncMsg.issueUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-bold underline hover:opacity-80 shrink-0"
+                            >
+                              View GitHub Issue ↗
+                            </a>
+                          ) : (
+                            <a
+                              href={createDirectGitHubSongIssueUrl({
+                                songUrl: formData.music?.songUrl || '',
+                                title: formData.music?.title,
+                                volume: formData.music?.volume,
+                                updatedBy: updaterName,
+                                action: formData.music?.songUrl ? 'update' : 'remove',
+                              })}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-bold text-[11px] px-2 py-1 bg-white rounded-md border shadow-2xs hover:bg-gray-50 shrink-0"
+                            >
+                              🐙 1-Click Post Issue
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     {/* Audio Source Options */}
                     <div className="space-y-3">
                       <h5 className="font-display font-bold text-xs uppercase tracking-wider text-pastel-gold-700 flex items-center gap-1.5">
@@ -1118,7 +1355,7 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
                               )}
                             </div>
                             <p className="text-[11px] text-gray-500 leading-relaxed">
-                              Soft synthesizer music-box chime notes playing "Happy Birthday to You". 100% royalty-free, works offline and instantly on all devices. If no custom song is uploaded, this melody plays by default!
+                              Soft synthesizer music-box chime notes playing "Happy Birthday to You". 100% royalty-free, works offline and instantly on all devices. If no custom song is set or if removed, this melody plays by default!
                             </p>
                           </div>
 

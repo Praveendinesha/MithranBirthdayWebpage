@@ -1,6 +1,7 @@
-// Audio manager supporting both custom MP3 audio tracks and Web Audio API synthesized music
+// Audio manager supporting both GitHub-synced MP3 tracks and Web Audio API synthesized music
 import { invitationData } from '../config/invitationData';
 import { loadInvitationData } from './photoStorage';
+import { getCachedGitHubSong, fetchLatestGitHubSong } from './githubSongSync';
 
 export type SynthMelodyType = 'birthday' | 'lullaby' | 'celebration';
 
@@ -11,9 +12,9 @@ class SoundManager {
   private timerId: number | null = null;
   private melodyIndex: number = 0;
   private audioElement: HTMLAudioElement | null = null;
-  private currentAudioSrc: string | null = null;
   private volume: number = 0.5;
   private currentMelodyType: SynthMelodyType = 'birthday';
+  private sessionToken: number = 0; // Incremented on every state switch to kill orphaned callbacks
 
   // Sweet music box notes for "Happy Birthday to You"
   private birthdayMelodyNotes: { freq: number; duration: number; delay: number }[] = [
@@ -66,7 +67,7 @@ class SoundManager {
   ];
 
   constructor() {
-    // Listen for real-time invitation data updates from admin portal
+    // Listen for real-time invitation data updates
     if (typeof window !== 'undefined') {
       window.addEventListener('invitation_data_updated', (e: Event) => {
         const customEvent = e as CustomEvent<{ music?: { songUrl?: string; volume?: number } }>;
@@ -74,8 +75,11 @@ class SoundManager {
           const newUrl = customEvent.detail.music.songUrl || '';
           const newVol = customEvent.detail.music.volume ?? 0.5;
           this.volume = newVol;
+          if (this.audioElement) {
+            this.audioElement.volume = this.volume;
+          }
           if (this.isPlaying) {
-            // Restart with updated song/volume
+            // Smoothly switch without sound overlapping
             this.stopMelody();
             this.startMelody(newUrl);
           }
@@ -84,46 +88,75 @@ class SoundManager {
     }
   }
 
-  private getActiveSongUrl(): string {
+  /**
+   * Initializes background sync with GitHub to ensure the most recently updated song plays
+   */
+  public async syncWithGitHubSong(): Promise<void> {
     try {
+      const ghSong = await fetchLatestGitHubSong();
+      if (ghSong) {
+        if (ghSong.volume !== undefined) {
+          this.volume = ghSong.volume;
+          if (this.audioElement) this.audioElement.volume = this.volume;
+        }
+
+        const activeUrl = this.getActiveSongUrl();
+        const ghUrl = ghSong.isDefault ? '' : (ghSong.songUrl || '');
+
+        if (activeUrl !== ghUrl && this.isPlaying) {
+          this.stopMelody();
+          this.startMelody(ghUrl);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  public getActiveSongUrl(): string {
+    try {
+      // 1. Check GitHub cached song first (global live priority)
+      const ghSong = getCachedGitHubSong();
+      if (ghSong) {
+        if (ghSong.isDefault || ghSong.action === 'remove') {
+          return '';
+        }
+        if (ghSong.songUrl) {
+          return ghSong.songUrl.trim();
+        }
+      }
+
+      // 2. Check local storage
       const liveData = loadInvitationData();
-      return liveData?.music?.songUrl?.trim() || invitationData?.music?.songUrl?.trim() || '';
+      if (liveData?.music?.songUrl !== undefined) {
+        return liveData.music.songUrl.trim();
+      }
+
+      // 3. Fallback to default
+      return invitationData?.music?.songUrl?.trim() || '';
     } catch {
       return invitationData?.music?.songUrl?.trim() || '';
     }
   }
 
-  private getAudioElement(customUrl?: string): HTMLAudioElement | null {
-    const url = customUrl !== undefined ? customUrl.trim() : this.getActiveSongUrl();
-    if (!url) {
-      if (this.audioElement) {
-        this.audioElement.pause();
-        this.audioElement = null;
-        this.currentAudioSrc = null;
-      }
-      return null;
+  private stopAllPlayback() {
+    this.sessionToken++; // Invalidate any pending callbacks / loops
+    if (this.timerId !== null) {
+      clearTimeout(this.timerId);
+      this.timerId = null;
     }
+    this.melodyIndex = 0;
 
-    if (!this.audioElement || this.currentAudioSrc !== url) {
-      if (this.audioElement) {
+    if (this.audioElement) {
+      this.audioElement.onerror = null;
+      this.audioElement.onended = null;
+      try {
         this.audioElement.pause();
+        this.audioElement.currentTime = 0;
+      } catch {
+        // ignore
       }
-      this.audioElement = new Audio(url);
-      this.audioElement.loop = true;
-      this.audioElement.volume = this.volume;
-      this.currentAudioSrc = url;
-
-      this.audioElement.addEventListener('error', (err) => {
-        console.warn('Audio file error or 404, smoothly falling back to synthesized birthday melody:', err);
-        if (this.isPlaying) {
-          this.startSynthMelody();
-        }
-      });
-    } else {
-      this.audioElement.volume = this.volume;
     }
-
-    return this.audioElement;
   }
 
   private getAudioContext(): AudioContext {
@@ -191,47 +224,82 @@ class SoundManager {
     this.currentMelodyType = preset;
   }
 
+  /**
+   * Main entry point to play celebration audio.
+   * Completely stops previous audio before starting new audio, avoiding overlap.
+   */
   public startMelody(customUrl?: string) {
-    if (this.isPlaying) return;
+    this.stopAllPlayback();
     this.isPlaying = true;
 
-    const audio = this.getAudioElement(customUrl);
-    if (audio) {
-      audio.play().catch(() => {
-        // Fallback to synth if browser blocks autoplay or file fails
-        this.startSynthMelody();
-      });
+    const currentSession = this.sessionToken;
+    const resolvedUrl = customUrl !== undefined ? customUrl.trim() : this.getActiveSongUrl();
+
+    if (resolvedUrl) {
+      if (!this.audioElement) {
+        this.audioElement = new Audio();
+      }
+      this.audioElement.src = resolvedUrl;
+      this.audioElement.loop = true;
+      this.audioElement.volume = this.volume;
+
+      // Fail-safe error fallback to sweet synthesizer
+      this.audioElement.onerror = () => {
+        if (this.sessionToken !== currentSession || !this.isPlaying) return;
+        console.warn('Custom song failed to load or decode, smoothly falling back to synthesized Royal Birthday Music Box');
+        this.startSynthMelody(this.currentMelodyType, currentSession);
+      };
+
+      const playPromise = this.audioElement.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          if (this.sessionToken !== currentSession || !this.isPlaying) return;
+          if (err.name === 'AbortError') return; // User stopped or switched
+          console.warn('Audio play prevented by browser policy or network issue, using synthesizer fallback:', err);
+          this.startSynthMelody(this.currentMelodyType, currentSession);
+        });
+      }
     } else {
-      // No custom audio specified -> play sweet default birthday music box
-      this.startSynthMelody();
+      // No custom audio configured -> play default sweet Royal Birthday Music Box
+      this.startSynthMelody(this.currentMelodyType, currentSession);
     }
   }
 
-  public startSynthMelody(type: SynthMelodyType = this.currentMelodyType) {
+  public startSynthMelody(type: SynthMelodyType = this.currentMelodyType, expectedSession?: number) {
+    if (expectedSession !== undefined && expectedSession !== this.sessionToken) return;
+    if (!this.isPlaying) return;
+
+    if (this.timerId !== null) {
+      clearTimeout(this.timerId);
+      this.timerId = null;
+    }
+    if (this.audioElement) {
+      try {
+        this.audioElement.pause();
+      } catch {
+        // ignore
+      }
+    }
+
     this.melodyIndex = 0;
     this.currentMelodyType = type;
-    this.stepMelody();
+    this.stepMelody(this.sessionToken);
   }
 
-  private stepMelody = () => {
-    if (!this.isPlaying) return;
+  private stepMelody = (sessionId: number) => {
+    if (!this.isPlaying || this.sessionToken !== sessionId) return;
+
     const notes = this.currentMelodyType === 'lullaby' ? this.lullabyNotes : this.birthdayMelodyNotes;
     const note = notes[this.melodyIndex];
     this.playMusicBoxNote(note.freq, note.duration);
 
     this.melodyIndex = (this.melodyIndex + 1) % notes.length;
-    this.timerId = window.setTimeout(this.stepMelody, note.delay * 1000);
+    this.timerId = window.setTimeout(() => this.stepMelody(sessionId), note.delay * 1000);
   };
 
   public stopMelody() {
     this.isPlaying = false;
-    if (this.audioElement) {
-      this.audioElement.pause();
-    }
-    if (this.timerId !== null) {
-      clearTimeout(this.timerId);
-      this.timerId = null;
-    }
+    this.stopAllPlayback();
   }
 
   public toggleMusic(): boolean {
@@ -341,4 +409,3 @@ class SoundManager {
 }
 
 export const soundManager = new SoundManager();
-
