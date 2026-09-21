@@ -42,6 +42,7 @@ import {
   createDirectGitHubSongIssueUrl,
   getCachedGitHubSong,
   formatFriendlyTime,
+  uploadAudioToCloud,
   type GitHubSongConfig,
 } from '../utils/githubSongSync';
 
@@ -77,6 +78,8 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
   const [ghSongConfig, setGhSongConfig] = useState<GitHubSongConfig | null>(getCachedGitHubSong());
   const [isSyncingGitHubSong, setIsSyncingGitHubSong] = useState<boolean>(false);
   const [gitHubSyncMsg, setGitHubSyncMsg] = useState<{ success: boolean; text: string; issueUrl?: string } | null>(null);
+  const [isUploadingAudio, setIsUploadingAudio] = useState<boolean>(false);
+  const [audioUploadProgress, setAudioUploadProgress] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioFileInputRef = useRef<HTMLInputElement>(null);
@@ -145,31 +148,41 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
     }
   };
 
-  const handleAudioFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAudioFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 3.5 * 1024 * 1024) {
-      alert(
-        `This audio file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.\n\nFor instant browser loading, files in storage are recommended to be under 3.5MB.\n\nTip: You can also copy your MP3 into "public/audio/song.mp3" and set the URL to "/audio/song.mp3" below!`
-      );
+    if (file.size > 15 * 1024 * 1024) {
+      alert(`This audio file is ${(file.size / (1024 * 1024)).toFixed(1)}MB. Please select an MP3 under 15MB.`);
       return;
     }
 
     soundManager.playPop();
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      setFormData((prev) => ({
-        ...prev,
-        music: {
-          ...prev.music,
-          songUrl: dataUrl,
-          title: file.name.replace(/\.[^/.]+$/, ''),
-        },
-      }));
-    };
-    reader.readAsDataURL(file);
+    setIsUploadingAudio(true);
+    setAudioUploadProgress('Uploading audio to Cloud CDN for all live visitors... ⏳');
+
+    try {
+      const uploadRes = await uploadAudioToCloud(file);
+      if (uploadRes.success && uploadRes.url) {
+        const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
+        const validUrl: string = uploadRes.url || '';
+        setFormData((prev) => ({
+          ...prev,
+          music: {
+            ...prev.music,
+            songUrl: validUrl,
+            title: cleanTitle,
+          },
+        }));
+        setAudioUploadProgress(`✅ "${cleanTitle}" uploaded to Cloud CDN! Ready to broadcast to all live visitors.`);
+      } else {
+        setAudioUploadProgress('Upload service unavailable. You can also paste an online audio URL below.');
+      }
+    } catch (err: any) {
+      setAudioUploadProgress('Upload failed: ' + (err.message || 'Check network'));
+    } finally {
+      setIsUploadingAudio(false);
+    }
   };
 
   const handleTogglePreview = () => {
@@ -1389,7 +1402,7 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
                       {/* OPTION 2: Upload MP3 File */}
                       <div
                         className={`p-4 rounded-2xl border transition-all ${
-                          formData.music?.songUrl?.startsWith('data:')
+                          formData.music?.songUrl
                             ? 'bg-blue-50/70 border-blue-300 shadow-xs'
                             : 'bg-white border-gray-200 hover:border-blue-200'
                         }`}
@@ -1401,27 +1414,43 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
                               <h6 className="font-display font-bold text-xs text-pastel-navy-900">
                                 Upload Custom Audio File from Phone / PC
                               </h6>
-                              {formData.music?.songUrl?.startsWith('data:') && (
+                              {formData.music?.songUrl && (
                                 <span className="text-[10px] px-2 py-0.2 rounded-full bg-blue-100 text-blue-800 font-bold">
-                                  Active File
+                                  Cloud Stream Active
                                 </span>
                               )}
                             </div>
                             <p className="text-[11px] text-gray-500 leading-relaxed">
-                              Select any audio file (<code className="font-mono text-blue-700">.mp3, .m4a, .wav</code>) from your phone album or downloads.
+                              Select any audio file (<code className="font-mono text-blue-700">.mp3, .m4a, .wav</code>) from your phone album or downloads. It will automatically upload to Cloud CDN so all guests can stream and hear it!
                             </p>
                           </div>
 
                           <button
                             onClick={() => audioFileInputRef.current?.click()}
+                            disabled={isUploadingAudio}
                             className="px-3.5 py-1.5 rounded-xl bg-pastel-blue-100 hover:bg-pastel-blue-200 text-pastel-blue-800 border border-pastel-blue-300 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all shrink-0"
                           >
-                            <Upload className="w-3.5 h-3.5" />
-                            <span>Pick Audio</span>
+                            {isUploadingAudio ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <span>Uploading...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>{formData.music?.songUrl ? 'Change Audio' : 'Pick Audio'}</span>
+                              </>
+                            )}
                           </button>
                         </div>
 
-                        {formData.music?.songUrl?.startsWith('data:') && (
+                        {audioUploadProgress && (
+                          <div className="mt-2.5 p-2 rounded-xl bg-white border border-blue-200 text-xs text-blue-800 font-medium flex items-center gap-2">
+                            <span>{audioUploadProgress}</span>
+                          </div>
+                        )}
+
+                        {formData.music?.songUrl && (
                           <div className="mt-3 pt-3 border-t border-blue-100 flex items-center justify-between text-xs text-blue-900">
                             <span className="font-semibold truncate max-w-[260px]">
                               🎵 {formData.music.title || 'Uploaded Audio'}
@@ -1433,6 +1462,7 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
                                   ...prev,
                                   music: { ...prev.music, songUrl: '', title: 'Happy Birthday Music Box' },
                                 }));
+                                setAudioUploadProgress(null);
                               }}
                               className="text-rose-600 hover:text-rose-700 font-bold text-[11px] flex items-center gap-1"
                             >

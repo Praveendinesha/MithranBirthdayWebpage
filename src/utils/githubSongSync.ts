@@ -4,6 +4,37 @@ import { loadInvitationData, saveInvitationData, type EditableInvitationData } f
 export const GITHUB_SONG_LABEL = 'song_update';
 const GITHUB_SONG_CACHE_KEY = 'mithran_gh_song_cache_v1';
 
+/**
+ * Uploads an audio file (.mp3, .m4a, .wav) to a fast CORS cloud host so it gets a permanent public streaming URL
+ */
+export async function uploadAudioToCloud(file: File): Promise<{ success: boolean; url?: string; error?: string }> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file, file.name || 'birthday_song.mp3');
+
+    const res = await fetch('https://tmpfiles.org/api/v1/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) {
+      throw new Error(`Upload failed with status ${res.status}`);
+    }
+
+    const data = await res.json();
+    if (data?.data?.url) {
+      // tmpfiles.org /dl/ URL provides direct streaming audio
+      const directUrl = data.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
+      return { success: true, url: directUrl };
+    }
+
+    return { success: false, error: 'Could not retrieve streaming URL' };
+  } catch (err: any) {
+    console.error('Audio upload error:', err);
+    return { success: false, error: err.message || 'Upload failed' };
+  }
+}
+
 export interface GitHubSongConfig {
   songUrl: string;
   title?: string;
