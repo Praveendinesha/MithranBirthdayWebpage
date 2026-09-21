@@ -5,9 +5,32 @@ export const GITHUB_SONG_LABEL = 'song_update';
 const GITHUB_SONG_CACHE_KEY = 'mithran_gh_song_cache_v1';
 
 /**
- * Uploads an audio file (.mp3, .m4a, .wav) to a fast CORS cloud host so it gets a permanent public streaming URL
+ * Uploads an audio file (.mp3, .m4a, .wav, .aac, .ogg) to a permanent CORS cloud host
+ * so it gets a direct public streaming URL playable on all devices.
  */
 export async function uploadAudioToCloud(file: File): Promise<{ success: boolean; url?: string; error?: string }> {
+  // Strategy 1: Catbox.moe (Permanent, free, global CORS streaming)
+  try {
+    const formData = new FormData();
+    formData.append('reqtype', 'fileupload');
+    formData.append('fileToUpload', file, file.name || 'birthday_song.mp3');
+
+    const res = await fetch('https://catbox.moe/user/api.php', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (res.ok) {
+      const directUrl = (await res.text()).trim();
+      if (directUrl.startsWith('http://') || directUrl.startsWith('https://')) {
+        return { success: true, url: directUrl.replace('http://', 'https://') };
+      }
+    }
+  } catch (err) {
+    console.warn('Catbox upload attempt failed, trying fallback host...', err);
+  }
+
+  // Strategy 2: TmpFiles.org fallback
   try {
     const formData = new FormData();
     formData.append('file', file, file.name || 'birthday_song.mp3');
@@ -17,22 +40,18 @@ export async function uploadAudioToCloud(file: File): Promise<{ success: boolean
       body: formData,
     });
 
-    if (!res.ok) {
-      throw new Error(`Upload failed with status ${res.status}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.data?.url) {
+        const directUrl = data.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
+        return { success: true, url: directUrl };
+      }
     }
-
-    const data = await res.json();
-    if (data?.data?.url) {
-      // tmpfiles.org /dl/ URL provides direct streaming audio
-      const directUrl = data.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
-      return { success: true, url: directUrl };
-    }
-
-    return { success: false, error: 'Could not retrieve streaming URL' };
   } catch (err: any) {
-    console.error('Audio upload error:', err);
-    return { success: false, error: err.message || 'Upload failed' };
+    console.error('TmpFiles upload error:', err);
   }
+
+  return { success: false, error: 'Could not upload audio file. Please check internet connection or provide a direct audio URL.' };
 }
 
 export interface GitHubSongConfig {

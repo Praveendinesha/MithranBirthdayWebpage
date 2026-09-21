@@ -21,11 +21,13 @@ import {
   VolumeX,
   Play,
   Square,
-  Globe,
   RefreshCw,
-  Send,
   CheckCircle2,
   AlertCircle,
+  Key,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
 } from 'lucide-react';
 import {
   loadInvitationData,
@@ -40,11 +42,9 @@ import {
   fetchLatestGitHubSong,
   saveSongToGitHub,
   createDirectGitHubSongIssueUrl,
-  getCachedGitHubSong,
-  formatFriendlyTime,
   uploadAudioToCloud,
-  type GitHubSongConfig,
 } from '../utils/githubSongSync';
+import { getStoredGitHubToken, saveStoredGitHubToken } from '../utils/githubGuestbook';
 
 const ADMIN_PIN = 'SMS2026';
 
@@ -75,11 +75,13 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
 
   // GitHub Live Song Sync State
   const [updaterName, setUpdaterName] = useState<string>('Praveen');
-  const [ghSongConfig, setGhSongConfig] = useState<GitHubSongConfig | null>(getCachedGitHubSong());
   const [isSyncingGitHubSong, setIsSyncingGitHubSong] = useState<boolean>(false);
   const [gitHubSyncMsg, setGitHubSyncMsg] = useState<{ success: boolean; text: string; issueUrl?: string } | null>(null);
   const [isUploadingAudio, setIsUploadingAudio] = useState<boolean>(false);
   const [audioUploadProgress, setAudioUploadProgress] = useState<string | null>(null);
+  const [showAdvancedMusic, setShowAdvancedMusic] = useState<boolean>(false);
+  const [ghTokenInput, setGhTokenInput] = useState<string>(getStoredGitHubToken());
+  const [isTokenSavedToast, setIsTokenSavedToast] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioFileInputRef = useRef<HTMLInputElement>(null);
@@ -91,6 +93,7 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
       setPinError(false);
       setIsPreviewPlaying(false);
       setGitHubSyncMsg(null);
+      setGhTokenInput(getStoredGitHubToken());
       if (initialTab) {
         setActiveTab(initialTab);
       }
@@ -98,7 +101,6 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
       // Fetch latest GitHub song info on open
       fetchLatestGitHubSong().then((cfg) => {
         if (cfg) {
-          setGhSongConfig(cfg);
           if (cfg.updatedBy && cfg.updatedBy !== 'Admin') {
             setUpdaterName(cfg.updatedBy);
           }
@@ -152,36 +154,128 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 15 * 1024 * 1024) {
-      alert(`This audio file is ${(file.size / (1024 * 1024)).toFixed(1)}MB. Please select an MP3 under 15MB.`);
+    if (file.size > 25 * 1024 * 1024) {
+      alert(`This audio file is ${(file.size / (1024 * 1024)).toFixed(1)}MB. Please select an audio file under 25MB.`);
       return;
     }
 
     soundManager.playPop();
     setIsUploadingAudio(true);
-    setAudioUploadProgress('Uploading audio to Cloud CDN for all live visitors... ⏳');
+    setAudioUploadProgress('Uploading audio to Cloud CDN for all visitors... ⏳');
+    setGitHubSyncMsg(null);
 
     try {
       const uploadRes = await uploadAudioToCloud(file);
       if (uploadRes.success && uploadRes.url) {
         const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
-        const validUrl: string = uploadRes.url || '';
-        setFormData((prev) => ({
-          ...prev,
+        const validUrl: string = uploadRes.url;
+
+        const updatedFormData: EditableInvitationData = {
+          ...formData,
           music: {
-            ...prev.music,
+            ...formData.music,
             songUrl: validUrl,
             title: cleanTitle,
           },
-        }));
-        setAudioUploadProgress(`✅ "${cleanTitle}" uploaded to Cloud CDN! Ready to broadcast to all live visitors.`);
+        };
+
+        setFormData(updatedFormData);
+        saveInvitationData(updatedFormData);
+        onDataUpdated(updatedFormData);
+
+        // Preview immediately
+        soundManager.previewSong(validUrl);
+        setIsPreviewPlaying(true);
+
+        setAudioUploadProgress('Syncing with GitHub for all visitors... ⏳');
+
+        // Automatically broadcast to GitHub
+        const ghRes = await saveSongToGitHub({
+          songUrl: validUrl,
+          title: cleanTitle,
+          volume: formData.music?.volume ?? 0.5,
+          updatedBy: updaterName.trim() || 'Admin',
+          action: 'update',
+        });
+
+        if (ghRes.savedToGitHub) {
+          setGitHubSyncMsg({
+            success: true,
+            text: `🎉 Song uploaded & synced! All visitors will now hear "${cleanTitle}".`,
+            issueUrl: ghRes.issueUrl,
+          });
+        } else {
+          setGitHubSyncMsg({
+            success: true,
+            text: `✅ Song uploaded to cloud! Tap below to confirm and broadcast to GitHub.`,
+            issueUrl: ghRes.issueUrl,
+          });
+        }
+
+        setAudioUploadProgress(null);
       } else {
-        setAudioUploadProgress('Upload service unavailable. You can also paste an online audio URL below.');
+        setAudioUploadProgress(null);
+        alert(uploadRes.error || 'Upload service unavailable. Please try another audio file or paste a direct link in Advanced Settings.');
       }
     } catch (err: any) {
-      setAudioUploadProgress('Upload failed: ' + (err.message || 'Check network'));
+      setAudioUploadProgress(null);
+      alert('Upload failed: ' + (err.message || 'Check network connection'));
     } finally {
       setIsUploadingAudio(false);
+    }
+  };
+
+  const handleRemoveCustomSong = async () => {
+    soundManager.playPop();
+    setIsSyncingGitHubSong(true);
+    setGitHubSyncMsg(null);
+
+    const updatedFormData: EditableInvitationData = {
+      ...formData,
+      music: {
+        ...formData.music,
+        songUrl: '',
+        title: 'Happy Birthday Music Box',
+      },
+    };
+
+    setFormData(updatedFormData);
+    saveInvitationData(updatedFormData);
+    onDataUpdated(updatedFormData);
+
+    // Play default music box chime immediately
+    soundManager.previewSong('');
+    setIsPreviewPlaying(true);
+
+    try {
+      const ghRes = await saveSongToGitHub({
+        songUrl: '',
+        title: 'Default Royal Birthday Music Box',
+        volume: formData.music?.volume ?? 0.5,
+        updatedBy: updaterName.trim() || 'Admin',
+        action: 'remove',
+      });
+
+      if (ghRes.savedToGitHub) {
+        setGitHubSyncMsg({
+          success: true,
+          text: `🎂 Reverted to Default Royal Birthday Music Box for all visitors!`,
+          issueUrl: ghRes.issueUrl,
+        });
+      } else {
+        setGitHubSyncMsg({
+          success: true,
+          text: `🎂 Reverted locally! Tap below to confirm reset on GitHub for all visitors.`,
+          issueUrl: ghRes.issueUrl,
+        });
+      }
+    } catch (err) {
+      setGitHubSyncMsg({
+        success: false,
+        text: 'Reverted locally. Could not sync with GitHub automatically.',
+      });
+    } finally {
+      setIsSyncingGitHubSong(false);
     }
   };
 
@@ -196,62 +290,11 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
     }
   };
 
-  const handleSaveAndSyncSong = async (customAction?: 'update' | 'remove') => {
+  const handleSaveGhToken = () => {
     soundManager.playPop();
-    setIsSyncingGitHubSong(true);
-    setGitHubSyncMsg(null);
-
-    const isRemove = customAction === 'remove' || !formData.music?.songUrl?.trim();
-    const targetSongUrl = isRemove ? '' : (formData.music?.songUrl?.trim() || '');
-    const targetTitle = isRemove ? 'Default Royal Birthday Music Box' : (formData.music?.title || 'Custom Birthday Song');
-
-    const updatedFormData: EditableInvitationData = {
-      ...formData,
-      music: {
-        ...formData.music,
-        songUrl: targetSongUrl,
-        title: targetTitle,
-      },
-    };
-
-    setFormData(updatedFormData);
-    saveInvitationData(updatedFormData);
-    onDataUpdated(updatedFormData);
-
-    try {
-      const res = await saveSongToGitHub({
-        songUrl: targetSongUrl,
-        title: targetTitle,
-        volume: formData.music?.volume ?? 0.5,
-        updatedBy: updaterName.trim() || 'Admin',
-        action: isRemove ? 'remove' : 'update',
-      });
-
-      if (res.savedToGitHub) {
-        setGitHubSyncMsg({
-          success: true,
-          text: `Saved & Broadcasted to GitHub! All live visitors will now hear ${isRemove ? 'Default Birthday Music Box' : targetTitle}.`,
-          issueUrl: res.issueUrl,
-        });
-      } else {
-        setGitHubSyncMsg({
-          success: true,
-          text: `Saved locally! Click below to publish to GitHub Issues for all live visitors.`,
-          issueUrl: res.issueUrl,
-        });
-      }
-
-      // Refresh cached song config
-      const latest = await fetchLatestGitHubSong();
-      if (latest) setGhSongConfig(latest);
-    } catch (err) {
-      setGitHubSyncMsg({
-        success: false,
-        text: 'Saved locally. Could not sync with GitHub automatically.',
-      });
-    } finally {
-      setIsSyncingGitHubSong(false);
-    }
+    saveStoredGitHubToken(ghTokenInput);
+    setIsTokenSavedToast(true);
+    setTimeout(() => setIsTokenSavedToast(false), 2500);
   };
 
   const handleSaveAll = () => {
@@ -268,7 +311,13 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
 
       // Also trigger GitHub sync for song if on music tab or song is set
       if (activeTab === 'music' || formData.music?.songUrl) {
-        handleSaveAndSyncSong(formData.music?.songUrl ? 'update' : 'remove');
+        saveSongToGitHub({
+          songUrl: formData.music?.songUrl || '',
+          title: formData.music?.title || (formData.music?.songUrl ? 'Custom Song' : 'Default Royal Birthday Music Box'),
+          volume: formData.music?.volume ?? 0.5,
+          updatedBy: updaterName.trim() || 'Admin',
+          action: formData.music?.songUrl ? 'update' : 'remove',
+        });
       }
     } else {
       alert('Storage is full. Try uploading smaller photos or reset to defaults.');
@@ -1097,73 +1146,39 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
                   </div>
                 )}
 
-                {/* TAB 4: BACKGROUND SONG & AUDIO SETTINGS */}
+                {/* TAB 4: CELEBRATION SONG & AUDIO SETTINGS */}
                 {activeTab === 'music' && (
                   <div className="space-y-4">
+                    {/* Header */}
                     <div className="flex items-center justify-between">
                       <div>
                         <h4 className="font-display font-bold text-sm text-pastel-navy-900 flex items-center gap-1.5">
-                          <span>Background Song & Celebration Music</span>
+                          <span>Celebration Music & Song</span>
                           <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">
-                            Live Audio Broadcast 🎵
+                            Live on All Devices 🎵
                           </span>
                         </h4>
                         <p className="text-xs text-gray-500">
-                          Configure the music that automatically plays for all guests across all devices.
+                          Upload any song from your device or use the default music box chime. Changes sync for all visitors!
                         </p>
                       </div>
                     </div>
 
-                    {/* Live Global GitHub Status Banner */}
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-pastel-blue-50 via-white to-pastel-gold-50 border border-pastel-blue-200 text-pastel-navy-900 flex items-center justify-between gap-3 flex-wrap">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 shadow-2xs">
-                          <Globe className="w-4 h-4 animate-spin-slow" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-pastel-navy-900">
-                              Live Global Audio:
-                            </span>
-                            <span className="text-xs font-semibold text-blue-700">
-                              {ghSongConfig && !ghSongConfig.isDefault && ghSongConfig.songUrl
-                                ? (ghSongConfig.title || 'Custom Track')
-                                : 'Default Royal Birthday Music Box'}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-gray-500">
-                            {ghSongConfig?.updatedBy
-                              ? `Last updated by ${ghSongConfig.updatedBy} • ${formatFriendlyTime(ghSongConfig.updatedAt)}`
-                              : 'Default configuration active'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={async () => {
-                          soundManager.playPop();
-                          const fresh = await fetchLatestGitHubSong();
-                          if (fresh) setGhSongConfig(fresh);
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 hover:border-blue-300 text-gray-600 hover:text-blue-700 text-[11px] font-bold flex items-center gap-1 transition-all shadow-2xs"
-                        title="Check for recent song updates from other admins"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                        <span>Refresh Status</span>
-                      </button>
-                    </div>
-
-                    {/* Live Playing Status & Test Preview Player Card */}
-                    <div className="p-4 rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-md space-y-4 border border-blue-400/30">
+                    {/* Active Song Player Card */}
+                    <div className="p-4 rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-lg space-y-4 border border-blue-400/30">
                       <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-amber-300 shadow-inner shrink-0">
-                            <Music className="w-5 h-5" />
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-amber-300 shadow-inner shrink-0">
+                            {formData.music?.songUrl ? (
+                              <Music className="w-6 h-6 animate-pulse" />
+                            ) : (
+                              <Sparkles className="w-6 h-6" />
+                            )}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <h5 className="font-display font-bold text-sm text-white">
-                                {formData.music?.title || (formData.music?.songUrl ? 'Custom Audio Track' : 'Happy Birthday Music Box')}
+                              <h5 className="font-display font-bold text-sm text-white truncate max-w-[220px] sm:max-w-[300px]">
+                                {formData.music?.title || (formData.music?.songUrl ? 'Custom Song' : 'Happy Birthday Music Box')}
                               </h5>
                               <span
                                 className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
@@ -1175,18 +1190,18 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
                                 {formData.music?.songUrl ? 'Custom Song' : 'Default Music Box'}
                               </span>
                             </div>
-                            <p className="text-[11px] text-blue-200/80 mt-0.5">
+                            <p className="text-[11px] text-blue-200/80 mt-0.5 truncate">
                               {formData.music?.songUrl
-                                ? 'Custom audio file or web URL with looping'
-                                : 'Built-in gentle Royal Music Box chime melody (Royalty-free, zero loading delay)'}
+                                ? 'Custom song stream active across all devices'
+                                : 'Gentle Royal Birthday Music Box chime synthesizer'}
                             </p>
                           </div>
                         </div>
 
-                        {/* Live Audio Preview Button */}
+                        {/* Audio Test Preview Button */}
                         <button
                           onClick={handleTogglePreview}
-                          className={`px-4 py-2 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 shrink-0 ${
+                          className={`px-4 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 shrink-0 ${
                             isPreviewPlaying
                               ? 'bg-rose-500 hover:bg-rose-600 text-white animate-pulse'
                               : 'bg-gradient-to-r from-amber-400 to-pastel-gold-400 hover:from-amber-500 hover:to-pastel-gold-500 text-pastel-navy-900'
@@ -1206,7 +1221,7 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
                         </button>
                       </div>
 
-                      {/* Volume Slider Bar */}
+                      {/* Volume Slider */}
                       <div className="pt-3 border-t border-white/10 flex items-center gap-3">
                         <VolumeX className="w-4 h-4 text-blue-300 shrink-0" />
                         <input
@@ -1232,312 +1247,199 @@ export const AdminPhotoManagerModal: React.FC<AdminPhotoManagerModalProps> = ({
                       </div>
                     </div>
 
-                    {/* GitHub Live Broadcast Card */}
-                    <div className="p-4 rounded-2xl bg-white border border-pastel-gold-300 shadow-2xs space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h5 className="font-display font-bold text-xs uppercase tracking-wider text-pastel-gold-800 flex items-center gap-1.5">
-                          <Send className="w-3.5 h-3.5 text-pastel-gold-600" />
-                          <span>Live Broadcast & GitHub Sync</span>
-                        </h5>
-                        <span className="text-[10px] text-gray-500 font-medium">
-                          All visitors will hear this song
-                        </span>
-                      </div>
+                    {/* Primary Song Actions: Upload & Remove */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Upload Button */}
+                      <button
+                        onClick={() => audioFileInputRef.current?.click()}
+                        disabled={isUploadingAudio}
+                        className="p-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-bold text-xs shadow-md active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        {isUploadingAudio ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>Uploading & Syncing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4" />
+                            <span>{formData.music?.songUrl ? 'Upload / Change Song (MP3)' : 'Upload Birthday Song (MP3)'}</span>
+                          </>
+                        )}
+                      </button>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
-                        <div>
-                          <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
-                            Updated By (Your Name / Family)
-                          </label>
-                          <input
-                            type="text"
-                            value={updaterName}
-                            onChange={(e) => setUpdaterName(e.target.value)}
-                            placeholder="e.g. Praveen, Mom, Soundharya, SMS Family"
-                            className="w-full text-xs px-3 py-2 rounded-xl border border-gray-200 focus:border-pastel-gold-400 outline-hidden font-medium text-gray-800"
-                          />
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleSaveAndSyncSong(formData.music?.songUrl ? 'update' : 'remove')}
-                            disabled={isSyncingGitHubSong}
-                            className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-bold text-xs shadow-md active:scale-98 transition-all flex items-center justify-center gap-1.5"
-                          >
-                            {isSyncingGitHubSong ? (
-                              <>
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                <span>Syncing...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Globe className="w-3.5 h-3.5" />
-                                <span>Broadcast Song to GitHub</span>
-                              </>
-                            )}
-                          </button>
-
-                          {formData.music?.songUrl && (
-                            <button
-                              onClick={() => {
-                                if (window.confirm('Revert background song to default Royal Birthday Music Box on GitHub?')) {
-                                  handleSaveAndSyncSong('remove');
-                                }
-                              }}
-                              className="py-2 px-3 rounded-xl bg-gray-100 hover:bg-rose-50 hover:text-rose-700 text-gray-600 font-bold text-xs border border-gray-200 transition-colors shadow-2xs shrink-0"
-                              title="Revert live song to default music box"
-                            >
-                              <span>Revert to Default</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Sync Feedback Message */}
-                      {gitHubSyncMsg && (
-                        <div
-                          className={`p-2.5 rounded-xl text-xs flex items-center justify-between gap-2 border ${
-                            gitHubSyncMsg.success
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                              : 'bg-amber-50 text-amber-800 border-amber-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            {gitHubSyncMsg.success ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                            ) : (
-                              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                            )}
-                            <span>{gitHubSyncMsg.text}</span>
-                          </div>
-
-                          {gitHubSyncMsg.issueUrl ? (
-                            <a
-                              href={gitHubSyncMsg.issueUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-bold underline hover:opacity-80 shrink-0"
-                            >
-                              View GitHub Issue ↗
-                            </a>
-                          ) : (
-                            <a
-                              href={createDirectGitHubSongIssueUrl({
-                                songUrl: formData.music?.songUrl || '',
-                                title: formData.music?.title,
-                                volume: formData.music?.volume,
-                                updatedBy: updaterName,
-                                action: formData.music?.songUrl ? 'update' : 'remove',
-                              })}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-bold text-[11px] px-2 py-1 bg-white rounded-md border shadow-2xs hover:bg-gray-50 shrink-0"
-                            >
-                              🐙 1-Click Post Issue
-                            </a>
-                          )}
-                        </div>
-                      )}
+                      {/* Remove Song / Revert to Default */}
+                      <button
+                        onClick={handleRemoveCustomSong}
+                        disabled={!formData.music?.songUrl || isSyncingGitHubSong}
+                        className={`p-4 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 border ${
+                          formData.music?.songUrl
+                            ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 active:scale-98 cursor-pointer shadow-xs'
+                            : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                        }`}
+                      >
+                        {isSyncingGitHubSong ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>Resetting to Default...</span>
+                          </>
+                        ) : (
+                          <>
+                            <RotateCcw className="w-4 h-4" />
+                            <span>Reset to Default Music Box</span>
+                          </>
+                        )}
+                      </button>
                     </div>
 
-                    {/* Audio Source Options */}
-                    <div className="space-y-3">
-                      <h5 className="font-display font-bold text-xs uppercase tracking-wider text-pastel-gold-700 flex items-center gap-1.5">
-                        <span>Choose Song Mode</span>
-                      </h5>
-
-                      {/* OPTION 1: Use Built-in Default Birthday Music Box */}
-                      <div
-                        className={`p-4 rounded-2xl border transition-all ${
-                          !formData.music?.songUrl
-                            ? 'bg-emerald-50/70 border-emerald-300 shadow-xs'
-                            : 'bg-white border-gray-200 hover:border-emerald-200'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-base">🎂</span>
-                              <h6 className="font-display font-bold text-xs text-pastel-navy-900">
-                                Default Birthday Music Box Melody (Built-in)
-                              </h6>
-                              {!formData.music?.songUrl && (
-                                <span className="text-[10px] px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                                  Active (Default)
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-gray-500 leading-relaxed">
-                              Soft synthesizer music-box chime notes playing "Happy Birthday to You". 100% royalty-free, works offline and instantly on all devices. If no custom song is set or if removed, this melody plays by default!
-                            </p>
-                          </div>
-
-                          <button
-                            onClick={() => {
-                              soundManager.playPop();
-                              setFormData((prev) => ({
-                                ...prev,
-                                music: {
-                                  ...prev.music,
-                                  songUrl: '',
-                                  title: 'Happy Birthday Music Box',
-                                },
-                              }));
-                              if (isPreviewPlaying) {
-                                soundManager.previewSong('');
-                              }
-                            }}
-                            disabled={!formData.music?.songUrl}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                              !formData.music?.songUrl
-                                ? 'bg-emerald-200/60 text-emerald-800 cursor-default'
-                                : 'bg-white border border-gray-300 hover:border-emerald-400 text-gray-700 hover:text-emerald-700 shadow-2xs'
-                            }`}
-                          >
-                            {!formData.music?.songUrl ? 'Selected ✓' : 'Use Default'}
-                          </button>
-                        </div>
+                    {/* Progress / Status Notice */}
+                    {audioUploadProgress && (
+                      <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200 text-xs text-blue-900 font-semibold flex items-center gap-2 animate-pulse">
+                        <RefreshCw className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
+                        <span>{audioUploadProgress}</span>
                       </div>
+                    )}
 
-                      {/* OPTION 2: Upload MP3 File */}
+                    {/* GitHub Sync Status Banner */}
+                    {gitHubSyncMsg && (
                       <div
-                        className={`p-4 rounded-2xl border transition-all ${
-                          formData.music?.songUrl
-                            ? 'bg-blue-50/70 border-blue-300 shadow-xs'
-                            : 'bg-white border-gray-200 hover:border-blue-200'
+                        className={`p-3 rounded-2xl text-xs flex items-center justify-between gap-3 border ${
+                          gitHubSyncMsg.success
+                            ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                            : 'bg-amber-50 text-amber-900 border-amber-200'
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-base">📁</span>
-                              <h6 className="font-display font-bold text-xs text-pastel-navy-900">
-                                Upload Custom Audio File from Phone / PC
-                              </h6>
-                              {formData.music?.songUrl && (
-                                <span className="text-[10px] px-2 py-0.2 rounded-full bg-blue-100 text-blue-800 font-bold">
-                                  Cloud Stream Active
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-gray-500 leading-relaxed">
-                              Select any audio file (<code className="font-mono text-blue-700">.mp3, .m4a, .wav</code>) from your phone album or downloads. It will automatically upload to Cloud CDN so all guests can stream and hear it!
-                            </p>
-                          </div>
-
-                          <button
-                            onClick={() => audioFileInputRef.current?.click()}
-                            disabled={isUploadingAudio}
-                            className="px-3.5 py-1.5 rounded-xl bg-pastel-blue-100 hover:bg-pastel-blue-200 text-pastel-blue-800 border border-pastel-blue-300 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all shrink-0"
-                          >
-                            {isUploadingAudio ? (
-                              <>
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                <span>Uploading...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Upload className="w-3.5 h-3.5" />
-                                <span>{formData.music?.songUrl ? 'Change Audio' : 'Pick Audio'}</span>
-                              </>
-                            )}
-                          </button>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {gitHubSyncMsg.success ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          )}
+                          <span className="font-medium truncate">{gitHubSyncMsg.text}</span>
                         </div>
 
-                        {audioUploadProgress && (
-                          <div className="mt-2.5 p-2 rounded-xl bg-white border border-blue-200 text-xs text-blue-800 font-medium flex items-center gap-2">
-                            <span>{audioUploadProgress}</span>
-                          </div>
+                        {gitHubSyncMsg.issueUrl ? (
+                          <a
+                            href={gitHubSyncMsg.issueUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1 rounded-lg bg-white border border-emerald-300 font-bold text-[11px] text-emerald-800 hover:bg-emerald-100 shrink-0 transition-colors shadow-2xs"
+                          >
+                            View GitHub Issue ↗
+                          </a>
+                        ) : (
+                          <a
+                            href={createDirectGitHubSongIssueUrl({
+                              songUrl: formData.music?.songUrl || '',
+                              title: formData.music?.title,
+                              volume: formData.music?.volume,
+                              updatedBy: updaterName,
+                              action: formData.music?.songUrl ? 'update' : 'remove',
+                            })}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-bold text-xs hover:from-emerald-700 hover:to-teal-800 shrink-0 shadow-sm transition-all"
+                          >
+                            🐙 1-Click Save to GitHub
+                          </a>
                         )}
+                      </div>
+                    )}
 
-                        {formData.music?.songUrl && (
-                          <div className="mt-3 pt-3 border-t border-blue-100 flex items-center justify-between text-xs text-blue-900">
-                            <span className="font-semibold truncate max-w-[260px]">
-                              🎵 {formData.music.title || 'Uploaded Audio'}
-                            </span>
-                            <button
-                              onClick={() => {
-                                soundManager.playPop();
+                    {/* Advanced Settings Accordion (Collapsible) */}
+                    <div className="pt-1">
+                      <button
+                        onClick={() => setShowAdvancedMusic((prev) => !prev)}
+                        className="w-full py-2 px-3 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-semibold flex items-center justify-between transition-colors border border-gray-200 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span>⚙️ Advanced Settings (Direct URL / Auto-Sync Token)</span>
+                        </span>
+                        {showAdvancedMusic ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
+                      </button>
+
+                      {showAdvancedMusic && (
+                        <div className="mt-2.5 p-3.5 rounded-2xl bg-white border border-gray-200 space-y-3 shadow-2xs">
+                          {/* Direct Song URL */}
+                          <div>
+                            <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
+                              Direct Audio Stream URL (Optional)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. https://... or /audio/song.mp3"
+                              value={formData.music?.songUrl || ''}
+                              onChange={(e) => {
+                                const url = e.target.value;
                                 setFormData((prev) => ({
                                   ...prev,
-                                  music: { ...prev.music, songUrl: '', title: 'Happy Birthday Music Box' },
+                                  music: {
+                                    ...prev.music,
+                                    songUrl: url,
+                                    title: prev.music?.title || 'Custom Birthday Song',
+                                  },
                                 }));
-                                setAudioUploadProgress(null);
                               }}
-                              className="text-rose-600 hover:text-rose-700 font-bold text-[11px] flex items-center gap-1"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                              <span>Remove</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* OPTION 3: Custom URL or Public Path */}
-                      <div
-                        className={`p-4 rounded-2xl border transition-all ${
-                          formData.music?.songUrl && !formData.music?.songUrl?.startsWith('data:')
-                            ? 'bg-amber-50/70 border-amber-300 shadow-xs'
-                            : 'bg-white border-gray-200 hover:border-amber-200'
-                        }`}
-                      >
-                        <div className="space-y-2.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">🔗</span>
-                            <h6 className="font-display font-bold text-xs text-pastel-navy-900">
-                              Custom Song Path or Online Link
-                            </h6>
+                              className="w-full text-xs px-3 py-2 rounded-xl border border-gray-200 focus:border-pastel-gold-400 outline-hidden font-mono text-gray-800"
+                            />
                           </div>
 
-                          <div className="space-y-2">
-                            <div>
-                              <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
-                                Audio File Path / URL
-                              </label>
+                          {/* Song Title */}
+                          <div>
+                            <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
+                              Song Title
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Mithran Special Birthday Song"
+                              value={formData.music?.title || ''}
+                              onChange={(e) => {
+                                const title = e.target.value;
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  music: { ...prev.music, title: title },
+                                }));
+                              }}
+                              className="w-full text-xs px-3 py-2 rounded-xl border border-gray-200 focus:border-pastel-gold-400 outline-hidden font-medium text-gray-800"
+                            />
+                          </div>
+
+                          {/* GitHub Personal Access Token */}
+                          <div className="pt-2 border-t border-gray-100">
+                            <label className="text-[10px] uppercase font-bold text-gray-400 flex items-center justify-between mb-1">
+                              <span className="flex items-center gap-1">
+                                <Key className="w-3 h-3 text-amber-500" />
+                                <span>GitHub Token (For 100% Background Sync)</span>
+                              </span>
+                              {isTokenSavedToast && (
+                                <span className="text-emerald-600 font-bold normal-case">Token Saved! ✓</span>
+                              )}
+                            </label>
+                            <div className="flex items-center gap-2">
                               <input
-                                type="text"
-                                placeholder="e.g. /audio/birthday-song.mp3 or https://..."
-                                value={formData.music?.songUrl?.startsWith('data:') ? '' : (formData.music?.songUrl || '')}
-                                onChange={(e) => {
-                                  const url = e.target.value;
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    music: {
-                                      ...prev.music,
-                                      songUrl: url,
-                                      title: prev.music?.title || 'Custom Birthday Song',
-                                    },
-                                  }));
-                                }}
-                                className="w-full text-xs px-3 py-2 rounded-xl border border-gray-200 focus:border-pastel-gold-400 outline-hidden font-mono text-gray-800"
+                                type="password"
+                                placeholder="github_pat_... or ghp_..."
+                                value={ghTokenInput}
+                                onChange={(e) => setGhTokenInput(e.target.value)}
+                                className="flex-1 text-xs px-3 py-2 rounded-xl border border-gray-200 focus:border-pastel-gold-400 outline-hidden font-mono text-gray-800"
                               />
+                              <button
+                                onClick={handleSaveGhToken}
+                                className="px-3 py-2 rounded-xl bg-pastel-gold-500 hover:bg-pastel-gold-600 text-pastel-navy-900 font-bold text-xs transition-colors shrink-0 shadow-2xs cursor-pointer"
+                              >
+                                Save Token
+                              </button>
                             </div>
-
-                            <div>
-                              <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">
-                                Song Title Displayed to Guests
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="e.g. Shri Magizh Mithran Birthday Theme"
-                                value={formData.music?.title || ''}
-                                onChange={(e) => {
-                                  const title = e.target.value;
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    music: { ...prev.music, title: title },
-                                  }));
-                                }}
-                                className="w-full text-xs px-3 py-2 rounded-xl border border-gray-200 focus:border-pastel-gold-400 outline-hidden font-medium text-gray-800"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="p-2.5 rounded-xl bg-pastel-gold-50/70 border border-pastel-gold-200 text-[11px] text-pastel-navy-800 leading-relaxed">
-                            💡 <strong>Permanent Audio Tip</strong>: Place your MP3 file in your project at <code className="font-mono text-amber-800 bg-white/80 px-1 py-0.5 rounded">public/audio/song.mp3</code> and set URL to <code className="font-mono text-amber-800 bg-white/80 px-1 py-0.5 rounded">/audio/song.mp3</code>!
+                            <p className="text-[10px] text-gray-400 mt-1">
+                              Optional: Stored securely in your browser's localStorage so all uploads broadcast automatically without leaving the page.
+                            </p>
                           </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 )}
