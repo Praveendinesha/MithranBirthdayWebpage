@@ -1,9 +1,7 @@
-// Audio manager supporting both GitHub-synced MP3 tracks and Web Audio API synthesized music
-import { invitationData } from '../config/invitationData';
-import { loadInvitationData } from './photoStorage';
-import { getCachedGitHubSong, fetchLatestGitHubSong } from './githubSongSync';
+// Royal Birthday Music Box synthesized audio manager (Web Audio API)
+// Provides gentle, royalty-free, 100% reliable chimes that work offline and on all devices.
 
-export type SynthMelodyType = 'birthday' | 'lullaby' | 'celebration';
+export type SynthMelodyType = 'birthday' | 'lullaby';
 
 class SoundManager {
   private ctx: AudioContext | null = null;
@@ -11,12 +9,11 @@ class SoundManager {
   private isMuted: boolean = false;
   private timerId: number | null = null;
   private melodyIndex: number = 0;
-  private audioElement: HTMLAudioElement | null = null;
   private volume: number = 0.5;
   private currentMelodyType: SynthMelodyType = 'birthday';
-  private sessionToken: number = 0; // Incremented on every state switch to kill orphaned callbacks
+  private sessionToken: number = 0;
 
-  // Sweet music box notes for "Happy Birthday to You"
+  // Gentle music box chime notes for "Happy Birthday to You"
   private birthdayMelodyNotes: { freq: number; duration: number; delay: number }[] = [
     { freq: 261.63, duration: 0.35, delay: 0.4 }, // C4 - Hap-
     { freq: 261.63, duration: 0.2, delay: 0.25 }, // C4 - py
@@ -48,7 +45,7 @@ class SoundManager {
     { freq: 349.23, duration: 1.2, delay: 1.4 },  // F4 - you
   ];
 
-  // Sweet Lullaby chimes preset
+  // Sweet Lullaby chimes
   private lullabyNotes: { freq: number; duration: number; delay: number }[] = [
     { freq: 261.63, duration: 0.4, delay: 0.5 }, // Twin-
     { freq: 261.63, duration: 0.4, delay: 0.5 }, // kle
@@ -65,99 +62,6 @@ class SoundManager {
     { freq: 293.66, duration: 0.4, delay: 0.5 }, // You
     { freq: 261.63, duration: 0.8, delay: 1.0 }, // Are
   ];
-
-  constructor() {
-    // Listen for real-time invitation data updates
-    if (typeof window !== 'undefined') {
-      window.addEventListener('invitation_data_updated', (e: Event) => {
-        const customEvent = e as CustomEvent<{ music?: { songUrl?: string; volume?: number } }>;
-        if (customEvent.detail && customEvent.detail.music) {
-          const newUrl = customEvent.detail.music.songUrl || '';
-          const newVol = customEvent.detail.music.volume ?? 0.5;
-          this.volume = newVol;
-          if (this.audioElement) {
-            this.audioElement.volume = this.volume;
-          }
-          if (this.isPlaying) {
-            // Smoothly switch without sound overlapping
-            this.stopMelody();
-            this.startMelody(newUrl);
-          }
-        }
-      });
-    }
-  }
-
-  /**
-   * Initializes background sync with GitHub to ensure the most recently updated song plays
-   */
-  public async syncWithGitHubSong(): Promise<void> {
-    try {
-      const ghSong = await fetchLatestGitHubSong();
-      if (ghSong) {
-        if (ghSong.volume !== undefined) {
-          this.volume = ghSong.volume;
-          if (this.audioElement) this.audioElement.volume = this.volume;
-        }
-
-        const activeUrl = this.getActiveSongUrl();
-        const ghUrl = ghSong.isDefault ? '' : (ghSong.songUrl || '');
-
-        if (activeUrl !== ghUrl && this.isPlaying) {
-          this.stopMelody();
-          this.startMelody(ghUrl);
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  public getActiveSongUrl(): string {
-    try {
-      // 1. Check GitHub cached song first (global live priority)
-      const ghSong = getCachedGitHubSong();
-      if (ghSong) {
-        if (ghSong.isDefault || ghSong.action === 'remove') {
-          return '';
-        }
-        if (ghSong.songUrl) {
-          return ghSong.songUrl.trim();
-        }
-      }
-
-      // 2. Check local storage
-      const liveData = loadInvitationData();
-      if (liveData?.music?.songUrl !== undefined) {
-        return liveData.music.songUrl.trim();
-      }
-
-      // 3. Fallback to default
-      return invitationData?.music?.songUrl?.trim() || '';
-    } catch {
-      return invitationData?.music?.songUrl?.trim() || '';
-    }
-  }
-
-  private stopAllPlayback() {
-    this.sessionToken++; // Invalidate any pending callbacks / loops
-    if (this.timerId !== null) {
-      clearTimeout(this.timerId);
-      this.timerId = null;
-    }
-    this.melodyIndex = 0;
-
-    if (this.audioElement) {
-      this.audioElement.onerror = null;
-      this.audioElement.onended = null;
-      try {
-        this.audioElement.pause();
-        this.audioElement.currentTime = 0;
-      } catch {
-        // ignore
-      }
-    }
-  }
 
   private getAudioContext(): AudioContext {
     if (!this.ctx) {
@@ -211,78 +115,20 @@ class SoundManager {
 
   public setVolume(vol: number) {
     this.volume = Math.max(0.05, Math.min(1.0, vol));
-    if (this.audioElement) {
-      this.audioElement.volume = this.volume;
-    }
   }
 
   public getVolume(): number {
     return this.volume;
   }
 
-  public setMelodyPreset(preset: SynthMelodyType) {
-    this.currentMelodyType = preset;
-  }
-
-  /**
-   * Main entry point to play celebration audio.
-   * Completely stops previous audio before starting new audio, avoiding overlap.
-   */
-  public startMelody(customUrl?: string) {
-    this.stopAllPlayback();
-    this.isPlaying = true;
-
-    const currentSession = this.sessionToken;
-    const resolvedUrl = customUrl !== undefined ? customUrl.trim() : this.getActiveSongUrl();
-
-    if (resolvedUrl) {
-      if (!this.audioElement) {
-        this.audioElement = new Audio();
-      }
-      this.audioElement.src = resolvedUrl;
-      this.audioElement.loop = true;
-      this.audioElement.volume = this.volume;
-
-      // Fail-safe error fallback to sweet synthesizer
-      this.audioElement.onerror = () => {
-        if (this.sessionToken !== currentSession || !this.isPlaying) return;
-        console.warn('Custom song failed to load or decode, smoothly falling back to synthesized Royal Birthday Music Box');
-        this.startSynthMelody(this.currentMelodyType, currentSession);
-      };
-
-      const playPromise = this.audioElement.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          if (this.sessionToken !== currentSession || !this.isPlaying) return;
-          if (err.name === 'AbortError') return; // User stopped or switched
-          console.warn('Audio play prevented by browser policy or network issue, using synthesizer fallback:', err);
-          this.startSynthMelody(this.currentMelodyType, currentSession);
-        });
-      }
-    } else {
-      // No custom audio configured -> play default sweet Royal Birthday Music Box
-      this.startSynthMelody(this.currentMelodyType, currentSession);
-    }
-  }
-
-  public startSynthMelody(type: SynthMelodyType = this.currentMelodyType, expectedSession?: number) {
-    if (expectedSession !== undefined && expectedSession !== this.sessionToken) return;
-    if (!this.isPlaying) return;
-
+  public startMelody() {
+    this.sessionToken++;
     if (this.timerId !== null) {
       clearTimeout(this.timerId);
       this.timerId = null;
     }
-    if (this.audioElement) {
-      try {
-        this.audioElement.pause();
-      } catch {
-        // ignore
-      }
-    }
-
+    this.isPlaying = true;
     this.melodyIndex = 0;
-    this.currentMelodyType = type;
     this.stepMelody(this.sessionToken);
   }
 
@@ -299,7 +145,12 @@ class SoundManager {
 
   public stopMelody() {
     this.isPlaying = false;
-    this.stopAllPlayback();
+    this.sessionToken++;
+    if (this.timerId !== null) {
+      clearTimeout(this.timerId);
+      this.timerId = null;
+    }
+    this.melodyIndex = 0;
   }
 
   public toggleMusic(): boolean {
@@ -316,12 +167,7 @@ class SoundManager {
     return this.isPlaying;
   }
 
-  // Preview test song in Admin Portal
-  public previewSong(songUrl?: string) {
-    this.stopMelody();
-    this.startMelody(songUrl);
-  }
-
+  // Soft button pop sound effect
   public playPop() {
     try {
       const ctx = this.getAudioContext();
@@ -346,6 +192,7 @@ class SoundManager {
     }
   }
 
+  // Celebration fanfare sound effect
   public playFanfare() {
     try {
       const ctx = this.getAudioContext();
@@ -373,7 +220,7 @@ class SoundManager {
     }
   }
 
-  // Playful train whistle ("Choo Choo!")
+  // Playful train whistle sound effect ("Choo Choo!")
   public playTrainWhistle() {
     try {
       const ctx = this.getAudioContext();

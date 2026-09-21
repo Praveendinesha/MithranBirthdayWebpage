@@ -21,8 +21,6 @@ import { InteractiveFloatingBalloons } from './components/InteractiveFloatingBal
 import { StardustTrail } from './components/StardustTrail';
 import { AdminPhotoManagerModal, type AdminTab } from './components/AdminPhotoManagerModal';
 
-import { soundManager } from './utils/audio';
-
 export const App: React.FC = () => {
   const [data, setData] = useState<EditableInvitationData>(loadInvitationData());
   const [isUnwrapped, setIsUnwrapped] = useState<boolean>(false);
@@ -31,15 +29,12 @@ export const App: React.FC = () => {
   const [adminTab, setAdminTab] = useState<AdminTab>('baby');
   const [celebrationPopupTrigger, setCelebrationPopupTrigger] = useState<number>(0);
 
-  // Always land at the very top of the webpage on load/refresh and sync live song
+  // Always land at the very top of the webpage on load/refresh
   useEffect(() => {
     if ('scrollRestoration' in history) {
       history.scrollRestoration = 'manual';
     }
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-
-    // Sync latest song settings from GitHub
-    soundManager.syncWithGitHubSong();
   }, []);
 
   // Auto open admin if url contains ?admin=true or #admin
