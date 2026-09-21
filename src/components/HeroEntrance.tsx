@@ -16,11 +16,14 @@ export const HeroEntrance: React.FC<HeroEntranceProps> = ({ onUnwrap, babyName }
     if (isOpening) return;
     setIsOpening(true);
 
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+
     soundManager.playFanfare();
     soundManager.startMelody();
     triggerUnwrapConfetti();
 
     setTimeout(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       onUnwrap();
     }, 750);
   };

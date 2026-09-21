@@ -29,6 +29,14 @@ export const App: React.FC = () => {
   const [adminTab, setAdminTab] = useState<AdminTab>('baby');
   const [celebrationPopupTrigger, setCelebrationPopupTrigger] = useState<number>(0);
 
+  // Always land at the very top of the webpage on load/refresh
+  useEffect(() => {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, []);
+
   // Auto open admin if url contains ?admin=true or #admin
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -49,6 +57,14 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('invitation_data_updated', handleDataUpdate);
   }, []);
 
+  const handleUnwrap = () => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    setIsUnwrapped(true);
+    setTimeout(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }, 40);
+  };
+
   const whatsappUrl = `https://wa.me/${data.event.rsvp.whatsappNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
     data.event.rsvp.defaultMessage
   )}`;
@@ -68,7 +84,7 @@ export const App: React.FC = () => {
       {!isUnwrapped && (
         <HeroEntrance
           babyName={data.baby.fullName}
-          onUnwrap={() => setIsUnwrapped(true)}
+          onUnwrap={handleUnwrap}
         />
       )}
 
@@ -126,7 +142,7 @@ export const App: React.FC = () => {
           parents={data.baby.parents}
           babyName={data.baby.fullName}
           onReplayUnwrap={() => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
             setIsUnwrapped(false);
           }}
           onOpenAdmin={() => {
