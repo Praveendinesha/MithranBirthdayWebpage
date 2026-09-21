@@ -51,6 +51,14 @@ export const invitationData = {
     photoUrl: "/images/Mithran.jpeg",
     themeEmoji: "👑",
   },
+  music: {
+    // 🎵 Where to change songs:
+    // Put your MP3 file in "public/audio/song.mp3" and set songUrl: "/audio/song.mp3"
+    // (Leave songUrl: "" if you want to use the gentle built-in music-box chime synthesizer)
+    songUrl: "", // e.g. "/audio/birthday-song.mp3"
+    title: "Happy Birthday Melody",
+    volume: 0.5,
+  },
   event: {
     title: "Shri Magizh Mithran's 1st Royal Birthday Celebration",
     dateFormatted: "Sunday, 04 | 10 | 2026",
@@ -61,7 +69,7 @@ export const invitationData = {
     hall: "Grand Celebration Hall",
     address: "No 74A, Erukanchery High Road, Chennai, Tamil Nadu 600039",
     landmark: "Near Ambedkar Arts College Signal",
-    dressCode: "Pastel Elegance & Festive (Powder Blue, Cream, Gold or Traditional)",
+    dressCode: "Pastel Elegance & Festive (Powder Blue, Sky Blue, White, Cream or Traditional)",
     googleMapsUrl: "https://maps.google.com/?q=DD+Palace+No+74A+Erukanchery+high+road+Chennai+Tamil+Nadu+600039",
     calendarDetails: {
       title: "👑 Shri Magizh Mithran's 1st Birthday Celebration!",
@@ -174,7 +182,7 @@ export const invitationData = {
       description: "Entered the world bringing infinite sunshine to Amma and Appa. Mastered the art of sleeping 19 hours and glowing with angelic cuteness.",
       stats: { label: "Milestone", value: "Pure Perfection" },
       badge: "🐣 The Royal Arrival",
-      image: "/carousel/WhatsApp Image 2026-09-16 at 4.37.01 PM.jpeg",
+      image: "/milestones/month-1.svg",
       themeColor: "bg-blue-50 border-blue-200 text-blue-700",
     },
     {
@@ -184,8 +192,8 @@ export const invitationData = {
       description: "Gave Amma Soundharya and Appa Saravanan the first conscious, ear-to-ear grin. Discovered the magical rotating ceiling fans.",
       stats: { label: "Favorite View", value: "Ceiling Fan Lights" },
       badge: "😊 Big Giggles",
-      image: "/carousel/WhatsApp Image 2026-09-16 at 4.37.01 PM (1).jpeg",
-      themeColor: "bg-amber-50 border-amber-200 text-amber-700",
+      image: "/milestones/month-2.svg",
+      themeColor: "bg-sky-50 border-sky-200 text-sky-700",
     },
     {
       month: 3,
@@ -194,7 +202,7 @@ export const invitationData = {
       description: "Held his head up high like a prince inspecting his court! Discovered his tiny fingers and decided they are the tastiest snack.",
       stats: { label: "Skill", value: "90° Head Lift" },
       badge: "💪 Little Champ",
-      image: "/carousel/WhatsApp Image 2026-09-16 at 4.37.01 PM (2).jpeg",
+      image: "/milestones/month-3.svg",
       themeColor: "bg-emerald-50 border-emerald-200 text-emerald-700",
     },
     {
@@ -204,7 +212,7 @@ export const invitationData = {
       description: "Rolled over back-to-belly effortlessly! Giggled uncontrollably whenever Appa played peek-a-boo.",
       stats: { label: "Move", value: "360° Mat Spin" },
       badge: "🔄 Rolling Ninja",
-      image: "/carousel/WhatsApp Image 2026-09-16 at 4.37.02 PM.jpeg",
+      image: "/milestones/month-4.svg",
       themeColor: "bg-rose-50 border-rose-200 text-rose-700",
     },
     {
@@ -214,7 +222,7 @@ export const invitationData = {
       description: "Unlocked lightning-fast pincer grasp. Phones, spectacles, and shiny bangles are all target objects for Magizh!",
       stats: { label: "Target", value: "Appa's Phone" },
       badge: "✋ Grab Master",
-      image: "/carousel/WhatsApp Image 2026-09-16 at 4.37.02 PM (1).jpeg",
+      image: "/milestones/month-5.svg",
       themeColor: "bg-cyan-50 border-cyan-200 text-cyan-700",
     },
     {
@@ -224,7 +232,7 @@ export const invitationData = {
       description: "Tasted yummy mashed fruit purees and porridge. 20% eaten, 80% artistically applied to cheeks and bib.",
       stats: { label: "Favorite Food", value: "Sweet Apple Mash" },
       badge: "🥑 Foodie Prince",
-      image: "/carousel/WhatsApp Image 2026-09-16 at 4.37.02 PM (2).jpeg",
+      image: "/milestones/month-6.svg",
       themeColor: "bg-purple-50 border-purple-200 text-purple-700",
     },
     {
@@ -234,8 +242,8 @@ export const invitationData = {
       description: "Can sit independently with poise and majesty! Bounced cheerfully to rhythmic songs and musical rhymes.",
       stats: { label: "Posture", value: "Royal Throne Pose" },
       badge: "👑 Sitting King",
-      image: "/carousel/WhatsApp Image 2026-09-16 at 4.37.02 PM (3).jpeg",
-      themeColor: "bg-amber-50 border-amber-200 text-amber-700",
+      image: "/milestones/month-7.svg",
+      themeColor: "bg-indigo-50 border-indigo-200 text-indigo-700",
     },
     {
       month: 8,
@@ -244,7 +252,7 @@ export const invitationData = {
       description: "Tiny pearl tooth emerged! Started commando army crawling across the living room with supreme agility.",
       stats: { label: "Teeth", value: "1 Pearl Tooth" },
       badge: "🦷 Tooth Alert",
-      image: "/carousel/WhatsApp Image 2026-09-16 at 4.37.03 PM.jpeg",
+      image: "/milestones/month-8.svg",
       themeColor: "bg-blue-50 border-blue-200 text-blue-700",
     },
     {
@@ -254,7 +262,7 @@ export const invitationData = {
       description: "Pulls up to stand using sofa and chairs. Uttered his first clear 'Amma' and 'Appa' to cheerful celebrations!",
       stats: { label: "First Word", value: "'Amma / Appa'" },
       badge: "🗣️ Talker",
-      image: "/carousel/WhatsApp Image 2026-09-16 at 4.37.03 PM (1).jpeg",
+      image: "/milestones/month-9.svg",
       themeColor: "bg-teal-50 border-teal-200 text-teal-700",
     },
     {
@@ -264,7 +272,7 @@ export const invitationData = {
       description: "Cruises along every corner of the house. Learned to clap enthusiastically and wave sweet 'Ta-Ta' bye-byes.",
       stats: { label: "Special Skill", value: "Clapping & Ta-Ta" },
       badge: "👏 Clapping Pro",
-      image: "/carousel/WhatsApp Image 2026-09-16 at 4.37.04 PM.jpeg",
+      image: "/milestones/month-10.svg",
       themeColor: "bg-rose-50 border-rose-200 text-rose-700",
     },
     {
@@ -274,7 +282,7 @@ export const invitationData = {
       description: "Took wobbly, bold steps straight into Amma's arms! Instant applause and high fives from the entire family.",
       stats: { label: "Steps Record", value: "First Bold Steps" },
       badge: "🚶 Toddler Mode",
-      image: "/carousel/WhatsApp Image 2026-09-16 at 4.37.01 PM (1).jpeg",
+      image: "/milestones/month-11.svg",
       themeColor: "bg-indigo-50 border-indigo-200 text-indigo-700",
     },
     {
@@ -285,7 +293,7 @@ export const invitationData = {
       stats: { label: "Total Love", value: "Infinity & Beyond" },
       badge: "🎉 1st Birthday!",
       image: "/images/Mithran.jpeg",
-      themeColor: "bg-amber-100 border-amber-300 text-amber-800 font-bold",
+      themeColor: "bg-blue-100 border-blue-300 text-blue-900 font-bold",
     },
   ],
   initialBlessings: [
@@ -297,7 +305,7 @@ export const invitationData = {
       timestamp: "1 hour ago",
       avatarEmoji: "👵👴",
       likes: 18,
-      color: "from-amber-50 to-orange-50 border-amber-200",
+      color: "from-blue-50 to-sky-50 border-blue-200",
     },
     {
       id: "b2",

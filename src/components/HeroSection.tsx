@@ -21,9 +21,10 @@ interface HeroSectionProps {
     hall: string;
   };
   onShareClick: () => void;
+  onOpenAdmin?: (tab?: 'baby' | 'gallery' | 'milestones' | 'event') => void;
 }
 
-export const HeroSection: React.FC<HeroSectionProps> = ({ baby, event, onShareClick }) => {
+export const HeroSection: React.FC<HeroSectionProps> = ({ baby, event, onShareClick, onOpenAdmin }) => {
   const handlePhotoTap = (e: React.MouseEvent) => {
     soundManager.playPop();
     const rect = (e.target as HTMLElement).getBoundingClientRect();
@@ -39,7 +40,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ baby, event, onShareCl
         initial={{ opacity: 0, y: -15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="inline-flex items-center gap-2 px-5 py-1.5 rounded-full bg-gradient-to-r from-pastel-gold-100 via-white to-pastel-gold-100 border border-pastel-gold-300 text-pastel-gold-700 text-xs font-bold tracking-widest uppercase mb-6 shadow-xs"
+        onClick={() => {
+          if (onOpenAdmin) {
+            soundManager.playPop();
+            onOpenAdmin('baby');
+          }
+        }}
+        className="inline-flex items-center gap-2 px-5 py-1.5 rounded-full bg-gradient-to-r from-pastel-gold-100 via-white to-pastel-gold-100 border border-pastel-gold-300 text-pastel-gold-700 text-xs font-bold tracking-widest uppercase mb-6 shadow-xs cursor-pointer hover:border-pastel-gold-400 transition-colors"
+        title="Tap to manage main baby photo & details"
       >
         <Crown className="w-4 h-4 fill-pastel-gold-500 text-pastel-gold-500" />
         <span className="font-royal tracking-widest text-[11px]">Royal 1st Birthday Milestone</span>
@@ -51,12 +59,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ baby, event, onShareCl
         initial={{ scale: 0.85, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: 'spring', damping: 14, stiffness: 120, delay: 0.1 }}
-        className="relative mb-7 cursor-pointer"
+        className="relative mb-7 cursor-pointer select-none"
         onClick={handlePhotoTap}
         title="Tap me for love!"
       >
-        {/* Soft Golden Halo */}
-        <div className="absolute -inset-4 rounded-full bg-gradient-to-tr from-pastel-gold-400 via-pastel-blue-300 to-pastel-rose-300 blur-lg opacity-60 animate-pulse-glow" />
+        {/* Soft Multi-Color Pastel Glow Aura */}
+        <div className="absolute -inset-4 rounded-full bg-gradient-to-tr from-pastel-gold-400 via-pastel-blue-300 to-pastel-rose-300 blur-lg opacity-60 animate-pulse-glow pointer-events-none" />
 
         {/* Floating Crown on Top */}
         <motion.div
@@ -65,9 +73,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ baby, event, onShareCl
             rotate: [-3, 3, -3],
           }}
           transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -top-8 left-1/2 -translate-x-1/2 z-20"
+          className="absolute -top-8 left-1/2 -translate-x-1/2 z-20 pointer-events-none"
         >
-          <span className="text-5xl filter drop-shadow-md">👑</span>
+          <span className="text-5xl filter drop-shadow-md select-none">👑</span>
         </motion.div>
 
         {/* Frame */}
@@ -93,8 +101,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ baby, event, onShareCl
           transition={{ delay: 0.4, type: 'spring' }}
           className="absolute -bottom-2 -right-2 z-20 w-14 h-14 rounded-full bg-gradient-to-br from-pastel-gold-400 to-amber-500 text-white font-display font-black text-xl flex flex-col items-center justify-center shadow-lg border-2 border-white"
         >
-          <span>1</span>
-          <span className="text-[9px] -mt-1 font-sans uppercase font-bold tracking-widest">Year</span>
+          <span className="leading-none">1</span>
+          <span className="text-[9px] -mt-0.5 font-sans uppercase font-bold tracking-widest">Year</span>
         </motion.div>
 
         {/* Sparkle badge */}
@@ -110,11 +118,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ baby, event, onShareCl
         transition={{ delay: 0.2 }}
         className="max-w-md mx-auto w-full"
       >
-        <p className="text-xs uppercase tracking-widest font-bold text-pastel-gold-700 mb-1">
+        <p className="text-xs uppercase tracking-widest font-bold text-pastel-gold-700 mb-1 font-display">
           Our Little Prince Turns One! 👑
         </p>
 
-        {/* BIG HIGH-VISIBILITY NAME */}
+        {/* BIG HIGH-VISIBILITY GOLDEN NAME */}
         <h1 className="font-royal font-black text-3xl sm:text-4xl text-pastel-navy-900 tracking-wide uppercase leading-tight mb-3 drop-shadow-xs">
           <span className="gold-gradient-text">{baby.fullName}</span>
         </h1>
@@ -139,7 +147,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ baby, event, onShareCl
           <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
         </div>
 
-        {/* Full Date & Venue Cards (NO TRUNCATION, SPACIOUS & READABLE) */}
+        {/* Full Date & Venue Cards */}
         <div className="space-y-2.5 max-w-sm mx-auto mb-6 text-left">
           {/* Full Date & Time Card */}
           <div className="p-3.5 rounded-2xl bg-white border border-pastel-blue-200 shadow-xs flex items-center gap-3">

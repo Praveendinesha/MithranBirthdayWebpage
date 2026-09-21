@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Gift, Crown, Heart } from 'lucide-react';
-import { triggerUnwrapConfetti, triggerCelebrationSideCannons } from '../utils/confetti';
+import { Sparkles, Crown } from 'lucide-react';
+import { triggerUnwrapConfetti } from '../utils/confetti';
 import { soundManager } from '../utils/audio';
 
 interface HeroEntranceProps {
@@ -11,152 +11,107 @@ interface HeroEntranceProps {
 
 export const HeroEntrance: React.FC<HeroEntranceProps> = ({ onUnwrap, babyName }) => {
   const [isOpening, setIsOpening] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
 
   const handleUnwrap = () => {
     if (isOpening) return;
     setIsOpening(true);
 
-    // Sound fanfare
     soundManager.playFanfare();
     soundManager.startMelody();
-
-    // Trigger explosive confetti
     triggerUnwrapConfetti();
-    setTimeout(() => {
-      triggerCelebrationSideCannons();
-    }, 400);
 
-    // Dismiss overlay after opening animation completes
     setTimeout(() => {
       onUnwrap();
-    }, 900);
+    }, 750);
   };
 
   return (
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 1 }}
-        exit={{ opacity: 0, scale: 1.1, filter: 'blur(10px)' }}
-        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-        className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-gradient-to-b from-[#EBF5FB] via-[#FFFDF9] to-[#FDF4EB] overflow-hidden"
+        exit={{ opacity: 0, scale: 1.05, filter: 'blur(8px)' }}
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-[#F0F7FB] via-[#E1EFF7] to-[#F0F7FB] overflow-hidden"
       >
-        {/* Ambient background glow & decorative floating icons */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-10 left-8 text-3xl animate-float opacity-70">🎈</div>
-          <div className="absolute top-16 right-10 text-3xl animate-float-slow opacity-60">☁️</div>
-          <div className="absolute bottom-16 left-12 text-3xl animate-float opacity-50">✨</div>
-          <div className="absolute bottom-20 right-10 text-3xl animate-float-slow opacity-70">🎈</div>
-          <div className="absolute top-1/2 left-4 text-2xl animate-wiggle opacity-40">⭐</div>
-          <div className="absolute top-1/3 right-6 text-2xl animate-wiggle opacity-40">👑</div>
-          
-          {/* Radial gold background highlight */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] sm:w-[460px] h-[340px] sm:h-[460px] bg-gradient-to-r from-pastel-gold-200/40 via-pastel-blue-200/40 to-pastel-rose-100/40 rounded-full blur-3xl pointer-events-none" />
+        {/* Subtle Background Glow */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[380px] h-[380px] bg-blue-300/30 rounded-full blur-3xl pointer-events-none" />
         </div>
 
-        {/* Top Tagline */}
+        {/* Top Royal Emblem */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/80 backdrop-blur-md border border-pastel-gold-300/80 shadow-sm mb-6"
+          transition={{ duration: 0.6 }}
+          className="flex flex-col items-center mb-6"
         >
-          <Crown className="w-4 h-4 text-pastel-gold-500 fill-pastel-gold-400" />
-          <span className="text-xs sm:text-sm font-semibold tracking-wide text-pastel-navy-800 uppercase">
-            Royal 1st Birthday Invitation
+          <div className="w-12 h-12 rounded-full border border-blue-200 flex items-center justify-center bg-white shadow-xs mb-3">
+            <Crown className="w-6 h-6 text-blue-600 fill-blue-300" />
+          </div>
+          <span className="font-royal text-[11px] tracking-[0.25em] text-blue-600 uppercase font-bold">
+            Royal 1st Birthday
           </span>
-          <Sparkles className="w-4 h-4 text-pastel-gold-500" />
         </motion.div>
 
-        {/* Headline */}
-        <motion.h1
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="text-center font-display font-extrabold text-2xl sm:text-3xl text-pastel-navy-900 mb-2 px-4 max-w-sm"
-        >
-          A Special Milestone For <br />
-          <span className="gold-gradient-text text-3xl sm:text-4xl">{babyName}</span>
-        </motion.h1>
-
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="text-xs sm:text-sm text-gray-500 text-center mb-8 max-w-xs"
-        >
-          You are cordially invited to celebrate our little prince turning one!
-        </motion.p>
-
-        {/* Interactive 3D Pulsing Gift Box */}
+        {/* Main Title */}
         <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: 'spring', damping: 15, stiffness: 150, delay: 0.4 }}
-          className="relative cursor-pointer group my-3"
-          onClick={handleUnwrap}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.15 }}
+          className="text-center max-w-sm mb-10"
         >
-          {/* Pulsing Aura Rings */}
-          <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-pastel-gold-300/40 via-pastel-blue-300/40 to-pastel-rose-300/40 blur-xl animate-pulse-glow" />
-          
-          <motion.div
-            animate={isOpening ? { scale: [1, 1.25, 0], rotate: [0, -10, 15, 0], opacity: [1, 1, 0] } : {
-              y: isHovered ? -8 : [0, -8, 0],
-              scale: isHovered ? 1.05 : 1,
-            }}
-            transition={isOpening ? { duration: 0.8 } : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-            className="relative z-10 w-48 h-48 sm:w-56 sm:h-56 rounded-3xl bg-gradient-to-br from-white via-pastel-cream-100 to-pastel-blue-100 p-1 shadow-2xl border-2 border-pastel-gold-300/80 flex flex-col items-center justify-center text-center overflow-hidden"
-          >
-            {/* Ribbon crossing */}
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-8 bg-gradient-to-r from-pastel-gold-400 via-amber-300 to-pastel-gold-400 shadow-md flex items-center justify-center opacity-90" />
-            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-8 bg-gradient-to-b from-pastel-gold-400 via-amber-300 to-pastel-gold-400 shadow-md opacity-90" />
-
-            {/* Ribbon Bow on Top */}
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center justify-center">
-              <div className="relative">
-                <span className="text-4xl drop-shadow-md">🎀</span>
-              </div>
-            </div>
-
-            {/* Gift Icon Center Badge */}
-            <div className="relative z-20 w-20 h-20 rounded-2xl bg-white/95 backdrop-blur-md shadow-lg border border-pastel-gold-300 flex items-center justify-center group-hover:rotate-6 transition-transform duration-300">
-              <Gift className="w-10 h-10 text-pastel-gold-500 fill-pastel-gold-100" />
-            </div>
-
-            {/* Floating Sparkles inside Box */}
-            <span className="absolute top-6 left-6 text-base animate-wiggle z-20">✨</span>
-            <span className="absolute bottom-6 right-6 text-base animate-wiggle z-20">⭐</span>
-          </motion.div>
+          <p className="font-serif italic text-base text-slate-500 mb-1">
+            You are cordially invited to celebrate
+          </p>
+          <h1 className="font-royal font-black text-2xl sm:text-3xl text-royalNavy-900 tracking-wider uppercase">
+            <span className="royal-gradient-text">{babyName}</span>
+          </h1>
         </motion.div>
 
-        {/* Tap to Unwrap Button / CTA */}
-        <motion.button
+        {/* Minimal Royal Seal Card */}
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', damping: 16, stiffness: 140, delay: 0.25 }}
           onClick={handleUnwrap}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="mt-6 group relative px-8 py-3.5 rounded-full bg-gradient-to-r from-pastel-gold-400 via-amber-400 to-pastel-gold-500 text-pastel-navy-900 font-display font-bold text-base shadow-soft-gold border border-amber-200 flex items-center gap-3 overflow-hidden cursor-pointer"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          className="relative cursor-pointer group"
         >
-          {/* Shimmer effect */}
-          <div className="absolute inset-0 shimmer-badge pointer-events-none" />
-          
-          <Sparkles className="w-5 h-5 text-pastel-navy-900 animate-spin" />
-          <span>Tap to Unwrap Invite 🎁</span>
-          <Heart className="w-4 h-4 text-rose-500 fill-rose-500 group-hover:scale-125 transition-transform" />
-        </motion.button>
+          {/* Outer Glow */}
+          <div className="absolute -inset-3 rounded-3xl bg-blue-300/30 blur-lg group-hover:opacity-100 opacity-60 transition-opacity" />
 
-        {/* Audio note indicator */}
+          <div className="relative z-10 w-52 h-64 sm:w-56 sm:h-68 rounded-2xl bg-gradient-to-b from-white to-blue-50/60 p-6 shadow-xl border border-blue-200/80 flex flex-col items-center justify-between text-center">
+            {/* Top Border Line */}
+            <div className="w-10 h-0.5 hairline-blue" />
+
+            {/* Center Royal Seal */}
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 shadow-lg border-2 border-white flex flex-col items-center justify-center text-white group-hover:rotate-6 transition-transform">
+              <span className="text-2xl drop-shadow-sm">👑</span>
+              <span className="text-[9px] font-royal tracking-widest uppercase font-bold mt-0.5">OPEN</span>
+            </div>
+
+            {/* Bottom Caption */}
+            <div className="space-y-1">
+              <span className="text-xs font-royal tracking-widest uppercase text-royalNavy-900 font-bold block">
+                Tap To Open
+              </span>
+              <span className="text-[10px] text-slate-400 font-sans tracking-wide">
+                Invitation Card
+              </span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Bottom Ambient Music Hint */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="text-[11px] text-gray-400 mt-4 flex items-center gap-1.5"
+          transition={{ delay: 0.5 }}
+          className="text-xs text-slate-400 mt-8 font-serif italic flex items-center gap-1.5"
         >
-          <span>🎵 Sound & ambient music ready</span>
+          <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+          <span>Includes ambient celebration music</span>
         </motion.p>
       </motion.div>
     </AnimatePresence>

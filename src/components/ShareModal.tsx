@@ -52,7 +52,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, babyNam
           initial={{ opacity: 0, scale: 0.9, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 10 }}
-          className="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border border-pastel-gold-200 text-center overflow-hidden"
+          className="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border border-blue-200 text-center overflow-hidden"
         >
           {/* Close button */}
           <button
@@ -66,15 +66,15 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, babyNam
           </button>
 
           {/* Crown Icon */}
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pastel-gold-100 to-amber-100 text-pastel-gold-600 mx-auto flex items-center justify-center mb-3">
-            <Crown className="w-6 h-6 fill-pastel-gold-400" />
+          <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 mx-auto flex items-center justify-center mb-3">
+            <Crown className="w-6 h-6 fill-blue-300 text-blue-600" />
           </div>
 
           <h3 className="font-display font-bold text-lg text-pastel-navy-900 mb-1">
             Share the Invitation
           </h3>
           <p className="text-xs text-gray-500 mb-5">
-            Spread the joy and invite family & friends to celebrate Prince Liam!
+            Spread the joy and invite family & friends to celebrate {babyName}!
           </p>
 
           <div className="space-y-2.5">

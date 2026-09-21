@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, Clock, MapPin, Navigation, CalendarPlus, MessageSquare, Shirt, Sparkles, Check, ExternalLink, Download } from 'lucide-react';
+import { Calendar, Clock, MapPin, Navigation, CalendarPlus, MessageSquare, Shirt, Check, ExternalLink, Download, Sparkles } from 'lucide-react';
 import { createGoogleCalendarUrl, downloadIcsFile } from '../utils/calendar';
 import { soundManager } from '../utils/audio';
 
@@ -34,7 +34,6 @@ export const EventLogistics: React.FC<EventLogisticsProps> = ({ event }) => {
   const [showCalendarModal, setShowCalendarModal] = useState<boolean>(false);
   const [copiedAddress, setCopiedAddress] = useState<boolean>(false);
 
-  // Calculate event end time (4 hours after target date)
   const startDate = new Date(event.targetDate);
   const endDate = new Date(startDate.getTime() + 4 * 60 * 60 * 1000);
 
@@ -66,33 +65,34 @@ export const EventLogistics: React.FC<EventLogisticsProps> = ({ event }) => {
     setTimeout(() => setCopiedAddress(false), 2500);
   };
 
-  // WhatsApp RSVP link
   const whatsappUrl = `https://wa.me/${event.rsvp.whatsappNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
     event.rsvp.defaultMessage
   )}`;
 
   return (
-    <section className="px-4 py-5 max-w-md mx-auto w-full">
-      <div className="rounded-3xl p-5 sm:p-6 bg-gradient-to-b from-white via-pastel-blue-50/40 to-white shadow-soft-card border border-pastel-blue-200 relative overflow-hidden">
-        {/* Section Header */}
-        <div className="text-center mb-5">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-pastel-gold-600 block">
-            Party Details & Action Hub
-          </span>
+    <section className="px-5 sm:px-6 py-6 max-w-md mx-auto w-full">
+      <div className="relative rounded-3xl p-6 sm:p-7 glass-card shadow-soft-card border border-pastel-blue-100 overflow-hidden">
+        {/* Top Header */}
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-pastel-gold-100 border border-pastel-gold-300 text-pastel-gold-700 text-xs font-bold uppercase tracking-widest mb-2 shadow-2xs">
+            <MapPin className="w-3.5 h-3.5" />
+            <span>Celebration Logistics</span>
+            <Sparkles className="w-3.5 h-3.5" />
+          </div>
           <h2 className="font-display font-extrabold text-xl text-pastel-navy-900">
             Event Logistics 📍
           </h2>
+          <div className="w-16 h-0.5 hairline-gold mx-auto mt-2.5" />
         </div>
 
-        {/* Date & Time Highlight Cards */}
+        {/* Date & Time Detail */}
         <div className="space-y-3 mb-5">
-          {/* Date & Time Card */}
           <div className="p-4 rounded-2xl bg-white border border-pastel-blue-100 shadow-xs flex items-start gap-3">
-            <div className="p-2.5 rounded-2xl bg-pastel-blue-100 text-pastel-blue-600 shrink-0">
+            <div className="p-2.5 rounded-2xl bg-pastel-blue-100 text-pastel-blue-600 shrink-0 mt-0.5">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+              <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">
                 When
               </span>
               <h4 className="font-display font-bold text-sm text-pastel-navy-900">
@@ -100,18 +100,18 @@ export const EventLogistics: React.FC<EventLogisticsProps> = ({ event }) => {
               </h4>
               <p className="text-xs text-pastel-blue-600 font-semibold flex items-center gap-1 mt-0.5">
                 <Clock className="w-3.5 h-3.5" />
-                {event.timeFormatted}
+                <span>{event.timeFormatted}</span>
               </p>
             </div>
           </div>
 
-          {/* Venue Card */}
-          <div className="p-4 rounded-2xl bg-white border border-pastel-gold-100 shadow-xs flex items-start gap-3">
-            <div className="p-2.5 rounded-2xl bg-pastel-gold-100 text-pastel-gold-600 shrink-0">
+          {/* Venue Detail */}
+          <div className="p-4 rounded-2xl bg-white border border-pastel-gold-200 shadow-xs flex items-start gap-3">
+            <div className="p-2.5 rounded-2xl bg-pastel-gold-100 text-pastel-gold-600 shrink-0 mt-0.5">
               <MapPin className="w-5 h-5" />
             </div>
             <div className="flex-1">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+              <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">
                 Where
               </span>
               <h4 className="font-display font-bold text-sm text-pastel-navy-900">
@@ -123,14 +123,14 @@ export const EventLogistics: React.FC<EventLogisticsProps> = ({ event }) => {
               <p className="text-xs text-gray-500 mt-1 leading-relaxed">
                 {event.address}
               </p>
-              <span className="text-[11px] text-gray-400 block mt-0.5 italic">
+              <p className="text-[11px] text-gray-400 mt-0.5 font-serif italic">
                 📍 Landmark: {event.landmark}
-              </span>
+              </p>
 
-              {/* Quick Copy Address */}
+              {/* Copy Address Button */}
               <button
                 onClick={handleCopyAddress}
-                className="mt-2 text-[11px] font-bold text-pastel-blue-600 hover:text-pastel-blue-700 flex items-center gap-1"
+                className="mt-2 text-[11px] font-bold text-pastel-blue-600 hover:text-pastel-blue-700 flex items-center gap-1 transition-colors"
               >
                 {copiedAddress ? (
                   <>
@@ -144,13 +144,13 @@ export const EventLogistics: React.FC<EventLogisticsProps> = ({ event }) => {
             </div>
           </div>
 
-          {/* Dress Code Card */}
+          {/* Dress Code */}
           <div className="p-3.5 rounded-2xl bg-pastel-cream-100/70 border border-pastel-cream-300 shadow-xs flex items-center gap-3">
             <div className="p-2 rounded-xl bg-white text-pastel-gold-600 shrink-0 shadow-xs">
               <Shirt className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-pastel-gold-700 uppercase tracking-wider block">
+              <span className="text-[10px] uppercase font-bold text-pastel-gold-700 tracking-wider block">
                 Suggested Dress Code
               </span>
               <p className="text-xs font-semibold text-pastel-navy-900">
@@ -160,7 +160,7 @@ export const EventLogistics: React.FC<EventLogisticsProps> = ({ event }) => {
           </div>
         </div>
 
-        {/* Primary Action Buttons */}
+        {/* Action Buttons */}
         <div className="space-y-2.5">
           {/* Action 1: Navigate to Venue */}
           <a
@@ -170,7 +170,7 @@ export const EventLogistics: React.FC<EventLogisticsProps> = ({ event }) => {
             onClick={() => soundManager.playPop()}
             className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-pastel-blue-500 to-pastel-blue-600 text-white font-display font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
           >
-            <Navigation className="w-4 h-4" />
+            <Navigation className="w-4 h-4 text-white" />
             <span>Navigate via Google Maps</span>
             <ExternalLink className="w-3.5 h-3.5 opacity-80" />
           </a>
@@ -201,13 +201,13 @@ export const EventLogistics: React.FC<EventLogisticsProps> = ({ event }) => {
           </a>
         </div>
 
-        {/* RSVP Deadline Note */}
+        {/* RSVP Note */}
         <p className="text-[11px] text-gray-400 text-center mt-3 font-medium">
           Kindly RSVP by <span className="font-bold text-pastel-navy-800">{event.rsvp.deadline}</span> to assist with catering.
         </p>
       </div>
 
-      {/* Calendar Option Modal */}
+      {/* Calendar Modal */}
       <AnimatePresence>
         {showCalendarModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">

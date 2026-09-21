@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E1EFF7"/>
+      <stop offset="50%" stop-color="#F0F7FB"/>
+      <stop offset="100%" stop-color="#C5E2F0"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="600" height="600" rx="36" fill="url(#bg1)"/>
+  <circle cx="300" cy="260" r="180" fill="url(#glow1)"/>
+  <rect x="24" y="24" width="552" height="552" rx="24" fill="none" stroke="#68B3D6" stroke-width="2" stroke-dasharray="8 6" opacity="0.6"/>
+  
+  <!-- Clouds & Stars -->
+  <g fill="#9ACEE5" opacity="0.7">
+    <circle cx="120" cy="120" r="24"/>
+    <circle cx="140" cy="110" r="30"/>
+    <circle cx="170" cy="120" r="20"/>
+    <circle cx="460" cy="150" r="20"/>
+    <circle cx="480" cy="140" r="26"/>
+    <circle cx="505" cy="150" r="18"/>
+  </g>
+  <g fill="#FBC052">
+    <path d="M100 240 L104 252 L116 256 L104 260 L100 272 L96 260 L84 256 L96 252 Z"/>
+    <path d="M500 260 L504 272 L516 276 L504 280 L500 292 L496 280 L484 276 L496 272 Z"/>
+    <path d="M300 80 L305 95 L320 100 L305 105 L300 120 L295 105 L280 100 L295 95 Z"/>
+  </g>
+
+  <!-- Illustration Center: Cradle & Crown -->
+  <g transform="translate(300, 260)">
+    <circle cx="0" cy="0" r="110" fill="#FFFFFF" filter="drop-shadow(0 10px 20px rgba(66, 153, 194, 0.15))"/>
+    <text x="0" y="25" font-size="90" text-anchor="middle">🐣</text>
+    <text x="0" y="-80" font-size="40" text-anchor="middle">👑</text>
+  </g>
+
+  <!-- Badge Pill -->
+  <g transform="translate(300, 430)">
+    <rect x="-110" y="-22" width="220" height="44" rx="22" fill="#2C7A9F"/>
+    <text x="0" y="6" font-family="'Cinzel', Georgia, serif" font-size="16" font-weight="bold" fill="#FFFFFF" text-anchor="middle" letter-spacing="3">MONTH 01</text>
+  </g>
+
+  <!-- Title -->
+  <text x="300" y="500" font-family="'Cinzel', Georgia, serif" font-size="24" font-weight="bold" fill="#1D2E49" text-anchor="middle">The Royal Arrival</text>
+  <text x="300" y="530" font-family="'Plus Jakarta Sans', sans-serif" font-size="15" fill="#4299C2" text-anchor="middle">Welcome Prince Magizh Mithran</text>
+</svg>

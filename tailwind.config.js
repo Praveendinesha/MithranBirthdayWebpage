@@ -31,6 +31,7 @@ export default {
             400: '#FBC052',
             500: '#E5A62E',
             600: '#C08316',
+            700: '#9E660D',
           },
           rose: {
             50: '#FFF5F7',
@@ -44,18 +45,36 @@ export default {
             200: '#C2ECCB',
             300: '#97DCAB',
           },
+          lavender: {
+            50: '#F8F5FF',
+            100: '#EFE8FE',
+            200: '#DCCBFC',
+            300: '#C4A9FA',
+          },
           navy: {
             700: '#2A3F60',
             800: '#1D2E49',
             900: '#121F33',
           }
+        },
+        ivory: {
+          50: '#FAFBFD',
+          100: '#F4F7FB',
+          200: '#EBF1F7',
+          300: '#DCE6F1',
+        },
+        royalNavy: {
+          700: '#1E293B',
+          800: '#0F172A',
+          900: '#0B1120',
         }
       },
       fontFamily: {
         sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
         display: ['"Outfit"', 'system-ui', 'sans-serif'],
         royal: ['"Cinzel"', 'serif'],
-        serif: ['"Playfair Display"', 'Georgia', 'serif'],
+        serif: ['"Playfair Display"', '"Cormorant Garamond"', 'Georgia', 'serif'],
+        script: ['"Great Vibes"', 'cursive'],
       },
       keyframes: {
         float: {
@@ -90,6 +109,8 @@ export default {
         'soft-card': '0 10px 30px -5px rgba(44, 122, 159, 0.08), 0 4px 12px -2px rgba(44, 122, 159, 0.04)',
         'soft-gold': '0 8px 25px -4px rgba(229, 166, 46, 0.25)',
         'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+        'luxury': '0 20px 40px -15px rgba(15, 23, 42, 0.05), 0 0 20px rgba(229, 166, 46, 0.12)',
+        'luxury-hover': '0 30px 60px -12px rgba(15, 23, 42, 0.08), 0 0 30px rgba(229, 166, 46, 0.2)',
       },
     },
   },

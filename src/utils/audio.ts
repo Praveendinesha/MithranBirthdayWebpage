@@ -1,5 +1,8 @@
-// Web Audio API ambient music synthesizer & sound effects
-// Completely standalone, zero external audio asset dependencies, guaranteed reliable playback.
+// Audio manager supporting both custom MP3 audio tracks and Web Audio API synthesized music
+import { invitationData } from '../config/invitationData';
+import { loadInvitationData } from './photoStorage';
+
+export type SynthMelodyType = 'birthday' | 'lullaby' | 'celebration';
 
 class SoundManager {
   private ctx: AudioContext | null = null;
@@ -7,39 +10,121 @@ class SoundManager {
   private isMuted: boolean = false;
   private timerId: number | null = null;
   private melodyIndex: number = 0;
+  private audioElement: HTMLAudioElement | null = null;
+  private currentAudioSrc: string | null = null;
+  private volume: number = 0.5;
+  private currentMelodyType: SynthMelodyType = 'birthday';
 
-  // Sweet music box notes (frequencies in Hz for a gentle celebratory melody)
-  private melodyNotes: { freq: number; duration: number; delay: number }[] = [
-    // Gentle "Happy Birthday / Royal Celebration" melody motif in C major / F major
-    { freq: 261.63, duration: 0.35, delay: 0.4 }, // C4
-    { freq: 261.63, duration: 0.2, delay: 0.25 }, // C4
-    { freq: 293.66, duration: 0.5, delay: 0.55 }, // D4
-    { freq: 261.63, duration: 0.5, delay: 0.55 }, // C4
-    { freq: 349.23, duration: 0.5, delay: 0.55 }, // F4
-    { freq: 329.63, duration: 0.9, delay: 0.95 }, // E4
+  // Sweet music box notes for "Happy Birthday to You"
+  private birthdayMelodyNotes: { freq: number; duration: number; delay: number }[] = [
+    { freq: 261.63, duration: 0.35, delay: 0.4 }, // C4 - Hap-
+    { freq: 261.63, duration: 0.2, delay: 0.25 }, // C4 - py
+    { freq: 293.66, duration: 0.5, delay: 0.55 }, // D4 - birth-
+    { freq: 261.63, duration: 0.5, delay: 0.55 }, // C4 - day
+    { freq: 349.23, duration: 0.5, delay: 0.55 }, // F4 - to
+    { freq: 329.63, duration: 0.9, delay: 0.95 }, // E4 - you
 
-    { freq: 261.63, duration: 0.35, delay: 0.4 }, // C4
-    { freq: 261.63, duration: 0.2, delay: 0.25 }, // C4
-    { freq: 293.66, duration: 0.5, delay: 0.55 }, // D4
-    { freq: 261.63, duration: 0.5, delay: 0.55 }, // C4
-    { freq: 392.00, duration: 0.5, delay: 0.55 }, // G4
-    { freq: 349.23, duration: 0.9, delay: 0.95 }, // F4
+    { freq: 261.63, duration: 0.35, delay: 0.4 }, // C4 - Hap-
+    { freq: 261.63, duration: 0.2, delay: 0.25 }, // C4 - py
+    { freq: 293.66, duration: 0.5, delay: 0.55 }, // D4 - birth-
+    { freq: 261.63, duration: 0.5, delay: 0.55 }, // C4 - day
+    { freq: 392.00, duration: 0.5, delay: 0.55 }, // G4 - to
+    { freq: 349.23, duration: 0.9, delay: 0.95 }, // F4 - you
 
-    { freq: 261.63, duration: 0.35, delay: 0.4 }, // C4
-    { freq: 261.63, duration: 0.2, delay: 0.25 }, // C4
-    { freq: 523.25, duration: 0.6, delay: 0.65 }, // C5
-    { freq: 440.00, duration: 0.5, delay: 0.55 }, // A4
-    { freq: 349.23, duration: 0.5, delay: 0.55 }, // F4
-    { freq: 329.63, duration: 0.5, delay: 0.55 }, // E4
-    { freq: 293.66, duration: 0.8, delay: 0.85 }, // D4
+    { freq: 261.63, duration: 0.35, delay: 0.4 }, // C4 - Hap-
+    { freq: 261.63, duration: 0.2, delay: 0.25 }, // C4 - py
+    { freq: 523.25, duration: 0.6, delay: 0.65 }, // C5 - birth-
+    { freq: 440.00, duration: 0.5, delay: 0.55 }, // A4 - day
+    { freq: 349.23, duration: 0.5, delay: 0.55 }, // F4 - dear
+    { freq: 329.63, duration: 0.5, delay: 0.55 }, // E4 - Mi-
+    { freq: 293.66, duration: 0.8, delay: 0.85 }, // D4 - thran
 
-    { freq: 466.16, duration: 0.35, delay: 0.4 }, // Bb4
-    { freq: 466.16, duration: 0.2, delay: 0.25 }, // Bb4
-    { freq: 440.00, duration: 0.5, delay: 0.55 }, // A4
-    { freq: 349.23, duration: 0.5, delay: 0.55 }, // F4
-    { freq: 392.00, duration: 0.5, delay: 0.6 },  // G4
-    { freq: 349.23, duration: 1.2, delay: 1.4 },  // F4
+    { freq: 466.16, duration: 0.35, delay: 0.4 }, // Bb4 - Hap-
+    { freq: 466.16, duration: 0.2, delay: 0.25 }, // Bb4 - py
+    { freq: 440.00, duration: 0.5, delay: 0.55 }, // A4 - birth-
+    { freq: 349.23, duration: 0.5, delay: 0.55 }, // F4 - day
+    { freq: 392.00, duration: 0.5, delay: 0.6 },  // G4 - to
+    { freq: 349.23, duration: 1.2, delay: 1.4 },  // F4 - you
   ];
+
+  // Sweet Lullaby chimes preset
+  private lullabyNotes: { freq: number; duration: number; delay: number }[] = [
+    { freq: 261.63, duration: 0.4, delay: 0.5 }, // Twin-
+    { freq: 261.63, duration: 0.4, delay: 0.5 }, // kle
+    { freq: 392.00, duration: 0.4, delay: 0.5 }, // Twin-
+    { freq: 392.00, duration: 0.4, delay: 0.5 }, // kle
+    { freq: 440.00, duration: 0.4, delay: 0.5 }, // Lit-
+    { freq: 440.00, duration: 0.4, delay: 0.5 }, // tle
+    { freq: 392.00, duration: 0.8, delay: 1.0 }, // Star
+    { freq: 349.23, duration: 0.4, delay: 0.5 }, // How
+    { freq: 349.23, duration: 0.4, delay: 0.5 }, // I
+    { freq: 329.63, duration: 0.4, delay: 0.5 }, // Won-
+    { freq: 329.63, duration: 0.4, delay: 0.5 }, // der
+    { freq: 293.66, duration: 0.4, delay: 0.5 }, // What
+    { freq: 293.66, duration: 0.4, delay: 0.5 }, // You
+    { freq: 261.63, duration: 0.8, delay: 1.0 }, // Are
+  ];
+
+  constructor() {
+    // Listen for real-time invitation data updates from admin portal
+    if (typeof window !== 'undefined') {
+      window.addEventListener('invitation_data_updated', (e: Event) => {
+        const customEvent = e as CustomEvent<{ music?: { songUrl?: string; volume?: number } }>;
+        if (customEvent.detail && customEvent.detail.music) {
+          const newUrl = customEvent.detail.music.songUrl || '';
+          const newVol = customEvent.detail.music.volume ?? 0.5;
+          this.volume = newVol;
+          if (this.isPlaying) {
+            // Restart with updated song/volume
+            this.stopMelody();
+            this.startMelody(newUrl);
+          }
+        }
+      });
+    }
+  }
+
+  private getActiveSongUrl(): string {
+    try {
+      const liveData = loadInvitationData();
+      return liveData?.music?.songUrl?.trim() || invitationData?.music?.songUrl?.trim() || '';
+    } catch {
+      return invitationData?.music?.songUrl?.trim() || '';
+    }
+  }
+
+  private getAudioElement(customUrl?: string): HTMLAudioElement | null {
+    const url = customUrl !== undefined ? customUrl.trim() : this.getActiveSongUrl();
+    if (!url) {
+      if (this.audioElement) {
+        this.audioElement.pause();
+        this.audioElement = null;
+        this.currentAudioSrc = null;
+      }
+      return null;
+    }
+
+    if (!this.audioElement || this.currentAudioSrc !== url) {
+      if (this.audioElement) {
+        this.audioElement.pause();
+      }
+      this.audioElement = new Audio(url);
+      this.audioElement.loop = true;
+      this.audioElement.volume = this.volume;
+      this.currentAudioSrc = url;
+
+      this.audioElement.addEventListener('error', (err) => {
+        console.warn('Audio file error or 404, smoothly falling back to synthesized birthday melody:', err);
+        if (this.isPlaying) {
+          this.startSynthMelody();
+        }
+      });
+    } else {
+      this.audioElement.volume = this.volume;
+    }
+
+    return this.audioElement;
+  }
 
   private getAudioContext(): AudioContext {
     if (!this.ctx) {
@@ -52,14 +137,12 @@ class SoundManager {
     return this.ctx;
   }
 
-  // Play a soft chime note (music box / celesta tone)
   private playMusicBoxNote(freq: number, duration: number) {
     if (this.isMuted) return;
     try {
       const ctx = this.getAudioContext();
       const now = ctx.currentTime;
 
-      // Primary tone
       const osc1 = ctx.createOscillator();
       const osc2 = ctx.createOscillator();
       const gainNode = ctx.createGain();
@@ -71,12 +154,12 @@ class SoundManager {
       osc1.type = 'sine';
       osc1.frequency.setValueAtTime(freq, now);
 
-      // Shimmer octave overtone
       osc2.type = 'triangle';
       osc2.frequency.setValueAtTime(freq * 2, now);
 
+      const targetGain = 0.08 * (this.volume / 0.5);
       gainNode.gain.setValueAtTime(0.0001, now);
-      gainNode.gain.exponentialRampToValueAtTime(0.07, now + 0.03);
+      gainNode.gain.exponentialRampToValueAtTime(targetGain, now + 0.03);
       gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
       osc1.connect(filter);
@@ -89,28 +172,62 @@ class SoundManager {
       osc1.stop(now + duration);
       osc2.stop(now + duration);
     } catch {
-      // Audio autoplay policy fallback
+      // ignore
     }
   }
 
-  public startMelody() {
+  public setVolume(vol: number) {
+    this.volume = Math.max(0.05, Math.min(1.0, vol));
+    if (this.audioElement) {
+      this.audioElement.volume = this.volume;
+    }
+  }
+
+  public getVolume(): number {
+    return this.volume;
+  }
+
+  public setMelodyPreset(preset: SynthMelodyType) {
+    this.currentMelodyType = preset;
+  }
+
+  public startMelody(customUrl?: string) {
     if (this.isPlaying) return;
     this.isPlaying = true;
+
+    const audio = this.getAudioElement(customUrl);
+    if (audio) {
+      audio.play().catch(() => {
+        // Fallback to synth if browser blocks autoplay or file fails
+        this.startSynthMelody();
+      });
+    } else {
+      // No custom audio specified -> play sweet default birthday music box
+      this.startSynthMelody();
+    }
+  }
+
+  public startSynthMelody(type: SynthMelodyType = this.currentMelodyType) {
     this.melodyIndex = 0;
+    this.currentMelodyType = type;
     this.stepMelody();
   }
 
   private stepMelody = () => {
     if (!this.isPlaying) return;
-    const note = this.melodyNotes[this.melodyIndex];
+    const notes = this.currentMelodyType === 'lullaby' ? this.lullabyNotes : this.birthdayMelodyNotes;
+    const note = notes[this.melodyIndex];
     this.playMusicBoxNote(note.freq, note.duration);
 
-    this.melodyIndex = (this.melodyIndex + 1) % this.melodyNotes.length;
+    this.melodyIndex = (this.melodyIndex + 1) % notes.length;
     this.timerId = window.setTimeout(this.stepMelody, note.delay * 1000);
   };
 
   public stopMelody() {
     this.isPlaying = false;
+    if (this.audioElement) {
+      this.audioElement.pause();
+    }
     if (this.timerId !== null) {
       clearTimeout(this.timerId);
       this.timerId = null;
@@ -131,7 +248,12 @@ class SoundManager {
     return this.isPlaying;
   }
 
-  // Playful pop sound effect
+  // Preview test song in Admin Portal
+  public previewSong(songUrl?: string) {
+    this.stopMelody();
+    this.startMelody(songUrl);
+  }
+
   public playPop() {
     try {
       const ctx = this.getAudioContext();
@@ -143,7 +265,7 @@ class SoundManager {
       osc.frequency.setValueAtTime(400, now);
       osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
 
-      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.setValueAtTime(0.12 * (this.volume / 0.5), now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
 
       osc.connect(gain);
@@ -156,11 +278,10 @@ class SoundManager {
     }
   }
 
-  // Celebratory harp / glockenspiel fanfare
   public playFanfare() {
     try {
       const ctx = this.getAudioContext();
-      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+      const notes = [523.25, 659.25, 783.99, 1046.50];
       notes.forEach((freq, idx) => {
         const now = ctx.currentTime + idx * 0.07;
         const osc = ctx.createOscillator();
@@ -170,7 +291,7 @@ class SoundManager {
         osc.frequency.setValueAtTime(freq, now);
 
         gain.gain.setValueAtTime(0.001, now);
-        gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.12 * (this.volume / 0.5), now + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
 
         osc.connect(gain);
@@ -183,6 +304,41 @@ class SoundManager {
       // ignore
     }
   }
+
+  // Playful train whistle ("Choo Choo!")
+  public playTrainWhistle() {
+    try {
+      const ctx = this.getAudioContext();
+      const playToot = (startTime: number, duration: number) => {
+        const freqs = [440, 554.37, 659.25]; // A4, C#5, E5 harmonious chord
+        freqs.forEach((f) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(f, startTime);
+
+          gain.gain.setValueAtTime(0.001, startTime);
+          gain.gain.linearRampToValueAtTime(0.06 * (this.volume / 0.5), startTime + 0.05);
+          gain.gain.setValueAtTime(0.06 * (this.volume / 0.5), startTime + duration - 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(startTime);
+          osc.stop(startTime + duration);
+        });
+      };
+
+      const now = ctx.currentTime;
+      playToot(now, 0.25);
+      playToot(now + 0.3, 0.45);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export const soundManager = new SoundManager();
+

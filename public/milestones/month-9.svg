@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg9" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#CCFBF1"/>
+      <stop offset="50%" stop-color="#F0FDFA"/>
+      <stop offset="100%" stop-color="#99F6E4"/>
+    </linearGradient>
+    <radialGradient id="glow9" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="600" height="600" rx="36" fill="url(#bg9)"/>
+  <circle cx="300" cy="260" r="180" fill="url(#glow9)"/>
+  <rect x="24" y="24" width="552" height="552" rx="24" fill="none" stroke="#2DD4BF" stroke-width="2" stroke-dasharray="8 6" opacity="0.6"/>
+
+  <!-- Illustration Center: Pulling to Stand & Talk -->
+  <g transform="translate(300, 260)">
+    <circle cx="0" cy="0" r="110" fill="#FFFFFF" filter="drop-shadow(0 10px 20px rgba(20, 184, 166, 0.15))"/>
+    <text x="0" y="25" font-size="90" text-anchor="middle">🗣️</text>
+    <text x="0" y="-80" font-size="38" text-anchor="middle">💬</text>
+  </g>
+
+  <!-- Badge Pill -->
+  <g transform="translate(300, 430)">
+    <rect x="-110" y="-22" width="220" height="44" rx="22" fill="#0D9488"/>
+    <text x="0" y="6" font-family="'Cinzel', Georgia, serif" font-size="16" font-weight="bold" fill="#FFFFFF" text-anchor="middle" letter-spacing="3">MONTH 09</text>
+  </g>
+
+  <!-- Title -->
+  <text x="300" y="500" font-family="'Cinzel', Georgia, serif" font-size="24" font-weight="bold" fill="#1D2E49" text-anchor="middle">Pulling to Stand</text>
+  <text x="300" y="530" font-family="'Plus Jakarta Sans', sans-serif" font-size="15" fill="#0D9488" text-anchor="middle">First Words: "Amma!" &amp; "Appa!"</text>
+</svg>

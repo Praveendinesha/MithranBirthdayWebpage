@@ -1,30 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { GuestBlessing } from '../config/invitationData';
-import { MessageSquarePlus, Heart, Sparkles, Send, User, MessageCircleHeart } from 'lucide-react';
+import {
+  MessageSquarePlus,
+  Heart,
+  Sparkles,
+  Send,
+  User,
+  Trash2,
+  RefreshCw,
+} from 'lucide-react';
 import { soundManager } from '../utils/audio';
 import { triggerHeartConfetti } from '../utils/confetti';
+import {
+  fetchGitHubBlessings,
+  postBlessingToGitHub,
+} from '../utils/githubGuestbook';
 
 interface GuestbookWallProps {
   initialBlessings: GuestBlessing[];
 }
 
-const EMOJI_OPTIONS = ['👑', '⭐', '🎈', '🧸', '💖', '🎂', '🍼', '🚀'];
-
-const STICKY_COLORS = [
-  'from-amber-50 to-orange-50 border-amber-200',
-  'from-blue-50 to-cyan-50 border-blue-200',
-  'from-rose-50 to-pink-50 border-rose-200',
-  'from-emerald-50 to-teal-50 border-emerald-200',
-  'from-purple-50 to-indigo-50 border-purple-200',
-];
+const STORAGE_KEY = 'magizh_mithran_guestbook_v4';
 
 export const GuestbookWall: React.FC<GuestbookWallProps> = ({ initialBlessings }) => {
   const [blessings, setBlessings] = useState<GuestBlessing[]>(() => {
-    const saved = localStorage.getItem('prince_liam_guestbook');
+    const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return parsed.filter(
+          (b: GuestBlessing) =>
+            !b.name.includes('Emily') &&
+            !b.name.includes('Miller') &&
+            !b.name.includes('Marcus') &&
+            !b.message.includes('Liam')
+        );
       } catch {
         // fallback
       }
@@ -35,51 +46,100 @@ export const GuestbookWall: React.FC<GuestbookWallProps> = ({ initialBlessings }
   const [name, setName] = useState('');
   const [relationship, setRelationship] = useState('');
   const [message, setMessage] = useState('');
-  const [selectedEmoji, setSelectedEmoji] = useState('👑');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingGitHub, setIsLoadingGitHub] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [lastSubmitted, setLastSubmitted] = useState<{ name: string; relationship: string; message: string } | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Fetch live blessings from GitHub Issues on mount
+  useEffect(() => {
+    // Clear legacy mock keys
+    localStorage.removeItem('prince_liam_guestbook');
+    localStorage.removeItem('prince_liam_guestbook_v2');
+    localStorage.removeItem('prince_liam_guestbook_v3');
+
+    syncWithGitHub();
+  }, []);
+
+  const syncWithGitHub = async () => {
+    setIsLoadingGitHub(true);
+    try {
+      const ghBlessings = await fetchGitHubBlessings();
+      if (ghBlessings.length > 0) {
+        setBlessings((prev) => {
+          // Merge GitHub blessings with local blessings without duplicates
+          const existingIds = new Set(prev.map((b) => b.id));
+          const existingMessages = new Set(prev.map((b) => `${b.name}:::${b.message}`));
+
+          const newItems = ghBlessings.filter(
+            (b) => !existingIds.has(b.id) && !existingMessages.has(`${b.name}:::${b.message}`)
+          );
+
+          const merged = [...newItems, ...prev];
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+          return merged;
+        });
+      }
+    } catch (err) {
+      console.warn('Could not sync with GitHub:', err);
+    } finally {
+      setIsLoadingGitHub(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !message.trim()) return;
 
     soundManager.playPop();
     setIsSubmitting(true);
 
-    const randomColor = STICKY_COLORS[Math.floor(Math.random() * STICKY_COLORS.length)];
+    const submittedName = name.trim();
+    const submittedRel = relationship.trim() || 'Family Well-wisher';
+    const submittedMsg = message.trim();
 
     const newEntry: GuestBlessing = {
       id: 'b_' + Date.now(),
-      name: name.trim(),
-      relationship: relationship.trim() || 'Well-wisher',
-      message: message.trim(),
+      name: submittedName,
+      relationship: submittedRel,
+      message: submittedMsg,
       timestamp: 'Just now',
-      avatarEmoji: selectedEmoji,
+      avatarEmoji: '👑',
       likes: 1,
-      color: randomColor,
+      color: 'bg-white',
     };
 
     const updated = [newEntry, ...blessings];
     setBlessings(updated);
-    localStorage.setItem('prince_liam_guestbook', JSON.stringify(updated));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
-    // Heart explosion
     triggerHeartConfetti();
+    setLastSubmitted({
+      name: submittedName,
+      relationship: submittedRel,
+      message: submittedMsg,
+    });
 
-    // Reset form
     setName('');
     setRelationship('');
     setMessage('');
-    setIsSubmitting(false);
     setShowSuccessToast(true);
-    setTimeout(() => setShowSuccessToast(false), 3000);
+
+    // Automatically post to GitHub in the background
+    try {
+      await postBlessingToGitHub(submittedName, submittedRel, submittedMsg);
+    } catch {
+      // ignore
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleLike = (id: string, e: React.MouseEvent) => {
     soundManager.playPop();
     const updated = blessings.map((b) => (b.id === id ? { ...b, likes: b.likes + 1 } : b));
     setBlessings(updated);
-    localStorage.setItem('prince_liam_guestbook', JSON.stringify(updated));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     const x = (rect.left + rect.width / 2) / window.innerWidth;
@@ -87,189 +147,224 @@ export const GuestbookWall: React.FC<GuestbookWallProps> = ({ initialBlessings }
     triggerHeartConfetti(x, y);
   };
 
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    soundManager.playPop();
+    const updated = blessings.filter((b) => b.id !== id);
+    setBlessings(updated);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  };
+
+  const createWhatsAppShareUrl = (blessingName: string, blessingMsg: string) => {
+    const text = `Dear Saravanan & Soundharya! ❤️\nHere is our heartfelt blessing for Shri Magizh Mithran on his 1st Birthday:\n\n"${blessingMsg}"\n\n— With Love, ${blessingName} 👶✨`;
+    return `https://wa.me/919876543210?text=${encodeURIComponent(text)}`;
+  };
+
   return (
-    <section className="px-4 py-5 max-w-md mx-auto w-full">
+    <section className="px-5 sm:px-6 py-6 max-w-md mx-auto w-full">
       {/* Header */}
-      <div className="text-center mb-4">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pastel-rose-100 text-rose-700 text-xs font-bold uppercase tracking-wider mb-1.5">
-          <MessageCircleHeart className="w-3.5 h-3.5 text-rose-600" />
-          <span>Love & Wishes</span>
+      <div className="text-center mb-6">
+        <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-pastel-gold-100 border border-pastel-gold-300 text-pastel-gold-700 text-xs font-bold uppercase tracking-widest mb-2 shadow-2xs">
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Virtual Blessing Book</span>
+          <Sparkles className="w-3.5 h-3.5" />
         </div>
         <h2 className="font-display font-extrabold text-xl text-pastel-navy-900">
           Blessings & Guestbook Wall 💌
         </h2>
-        <p className="text-xs text-gray-500 mt-0.5">
-          Leave your loving words for Prince Liam's 1st birthday keepsake!
-        </p>
+        <div className="w-16 h-0.5 hairline-gold mx-auto mt-2.5" />
       </div>
 
-      {/* Write a Blessing Card Form */}
-      <div className="rounded-3xl p-5 bg-white shadow-soft-card border border-pastel-rose-200/80 mb-6">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="p-2 rounded-xl bg-pastel-rose-100 text-rose-600">
-            <MessageSquarePlus className="w-4 h-4" />
+      {/* Form Card */}
+      <div className="rounded-3xl p-6 glass-card shadow-soft-card border border-pastel-gold-200 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-pastel-gold-100 text-pastel-gold-600">
+              <MessageSquarePlus className="w-5 h-5" />
+            </div>
+            <h3 className="font-display font-bold text-base text-pastel-navy-900">
+              Leave a Blessing for Little Mithran
+            </h3>
           </div>
-          <h3 className="font-display font-bold text-sm text-pastel-navy-900">
-            Post a Royal Wish
-          </h3>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-bold text-gray-500 block mb-1">
-                Your Name <span className="text-rose-500">*</span>
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">
+                Your Name <span className="text-rose-400">*</span>
               </label>
               <div className="relative">
                 <User className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Aunt Rachel"
+                  placeholder="e.g. Chithi / Mama"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:border-pastel-gold-400 focus:ring-1 focus:ring-pastel-gold-300 outline-none transition-all"
+                  className="w-full pl-9 pr-3 py-2.5 text-xs rounded-xl bg-white border border-pastel-gold-200 focus:border-pastel-gold-500 outline-none transition-all shadow-2xs"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-[11px] font-bold text-gray-500 block mb-1">
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">
                 Relationship (Optional)
               </label>
               <input
                 type="text"
-                placeholder="e.g. Cousin / Neighbor"
+                placeholder="e.g. Aunt / Family Friend"
                 value={relationship}
                 onChange={(e) => setRelationship(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:border-pastel-gold-400 focus:ring-1 focus:ring-pastel-gold-300 outline-none transition-all"
+                className="w-full px-3 py-2.5 text-xs rounded-xl bg-white border border-pastel-gold-200 focus:border-pastel-gold-500 outline-none transition-all shadow-2xs"
               />
             </div>
           </div>
 
-          {/* Emoji Sticker Choice */}
           <div>
-            <label className="text-[11px] font-bold text-gray-500 block mb-1">
-              Choose your sticker stamp:
-            </label>
-            <div className="flex gap-1.5 flex-wrap">
-              {EMOJI_OPTIONS.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => {
-                    soundManager.playPop();
-                    setSelectedEmoji(emoji);
-                  }}
-                  className={`w-8 h-8 rounded-xl text-base flex items-center justify-center transition-all ${
-                    selectedEmoji === emoji
-                      ? 'bg-pastel-gold-200 scale-110 shadow-xs border-2 border-pastel-gold-400'
-                      : 'bg-gray-100 hover:bg-gray-200'
-                  }`}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Message Area */}
-          <div>
-            <label className="text-[11px] font-bold text-gray-500 block mb-1">
-              Your Message & Blessing <span className="text-rose-500">*</span>
+            <label className="text-[11px] font-semibold text-gray-500 block mb-1">
+              Your Message & Blessings <span className="text-rose-400">*</span>
             </label>
             <textarea
               required
               rows={3}
-              placeholder="Write a sweet birthday note, funny advice, or warm prayer for Liam..."
+              placeholder="Write a warm prayer, blessing, or loving birthday note for Shri Magizh Mithran..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="w-full px-3 py-2 text-xs rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:border-pastel-gold-400 focus:ring-1 focus:ring-pastel-gold-300 outline-none transition-all resize-none"
+              className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-white border border-pastel-gold-200 focus:border-pastel-gold-500 outline-none transition-all resize-none shadow-2xs"
             />
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting || !name.trim() || !message.trim()}
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-400 to-pastel-gold-500 hover:from-rose-500 hover:to-amber-500 text-white font-display font-bold text-xs shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-pastel-gold-500 text-pastel-navy-900 font-display font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Send className="w-3.5 h-3.5" />
-            <span>Pin Blessing to Virtual Wall</span>
+            <Send className="w-4 h-4" />
+            <span>Post Blessing Note 🎈</span>
           </button>
         </form>
 
-        {/* Success Alert */}
         <AnimatePresence>
-          {showSuccessToast && (
+          {showSuccessToast && lastSubmitted && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mt-3 p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold text-center flex items-center justify-center gap-1.5 overflow-hidden"
+              className="mt-4 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs space-y-3 shadow-xs"
             >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Your blessing has been pinned to the board! ✨</span>
+              <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                <Sparkles className="w-4 h-4 text-emerald-600" />
+                <span>Blessing posted on the wall! 🎉</span>
+              </div>
+              <p className="text-[11px] text-emerald-700 leading-relaxed">
+                Your blessing has been saved and is now displayed on the wall! You can also forward it directly to Saravanan & Soundharya on WhatsApp:
+              </p>
+
+              <div className="flex flex-col gap-2">
+                <a
+                  href={createWhatsAppShareUrl(lastSubmitted.name, lastSubmitted.message)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 w-full py-2 px-3 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs shadow-sm transition-transform active:scale-98"
+                >
+                  <span>💬 Forward to Saravanan & Soundharya on WhatsApp</span>
+                </a>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Virtual Sticky Notes Board */}
+      {/* Sticky Notes Wall */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between text-xs text-gray-400 px-1">
-          <span className="font-semibold">{blessings.length} Wishes Received</span>
-          <span className="italic">Tap ❤️ to send love to any wish</span>
+        <div className="flex items-center justify-between text-xs text-gray-500 px-1 mb-1">
+          <div className="flex items-center gap-1.5 font-semibold">
+            <span>{blessings.length} Blessings on Wall</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          </div>
+
+          <button
+            onClick={() => {
+              soundManager.playPop();
+              syncWithGitHub();
+            }}
+            disabled={isLoadingGitHub}
+            className="text-[10px] text-pastel-blue-600 hover:text-pastel-blue-700 font-bold flex items-center gap-1 bg-pastel-blue-50 px-2.5 py-1 rounded-full border border-pastel-blue-200"
+            title="Sync with GitHub Issues"
+          >
+            <RefreshCw className={`w-3 h-3 ${isLoadingGitHub ? 'animate-spin' : ''}`} />
+            <span>{isLoadingGitHub ? 'Syncing...' : 'Sync GitHub'}</span>
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-3">
-          <AnimatePresence>
-            {blessings.map((b) => (
-              <motion.div
-                key={b.id}
-                initial={{ opacity: 0, y: 15, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.3 }}
-                className={`relative rounded-2xl p-4 bg-gradient-to-br ${b.color} border shadow-xs transition-all hover:shadow-md`}
-              >
-                {/* Pin Badge Graphic */}
-                <div className="absolute -top-2.5 left-6 text-xs drop-shadow-xs">
-                  📌
+        {blessings.map((b, idx) => {
+          const noteThemes = [
+            'bg-pastel-blue-100/90 border-pastel-blue-200',
+            'bg-pastel-gold-100/90 border-pastel-gold-200',
+            'bg-pastel-rose-100/90 border-pastel-rose-200',
+            'bg-pastel-mint-100/90 border-pastel-mint-200',
+            'bg-pastel-lavender-100/90 border-pastel-lavender-200',
+          ];
+          const noteStyle = noteThemes[idx % noteThemes.length];
+
+          return (
+            <motion.div
+              key={b.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`rounded-2xl p-4 ${noteStyle} border shadow-xs relative group`}
+            >
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div>
+                  <h4 className="font-display font-bold text-xs text-pastel-navy-900 flex items-center gap-1">
+                    <span>{b.name}</span>
+                    {b.id.startsWith('gh_') && (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-black/10 text-gray-700 font-mono font-normal">
+                        GitHub
+                      </span>
+                    )}
+                  </h4>
+                  <span className="text-[10px] text-gray-500 font-sans">
+                    {b.relationship} • {b.timestamp}
+                  </span>
                 </div>
 
-                <div className="flex items-start justify-between gap-2 mb-2 pt-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl p-1 rounded-xl bg-white/80 shadow-xs border border-black/5">
-                      {b.avatarEmoji}
-                    </span>
-                    <div>
-                      <h4 className="font-display font-bold text-xs text-pastel-navy-900 leading-none">
-                        {b.name}
-                      </h4>
-                      <span className="text-[10px] text-gray-500 font-medium">
-                        {b.relationship} • {b.timestamp}
-                      </span>
-                    </div>
-                  </div>
+                <div className="flex items-center gap-1.5">
+                  <a
+                    href={createWhatsAppShareUrl(b.name, b.message)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1 px-2 rounded-full bg-white/80 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors border border-emerald-200 shadow-2xs flex items-center gap-1"
+                    title="Forward this blessing on WhatsApp"
+                  >
+                    <span>💬 WhatsApp</span>
+                  </a>
 
-                  {/* Heart like button */}
                   <button
                     onClick={(e) => handleLike(b.id, e)}
-                    className="flex items-center gap-1 px-2 py-1 rounded-full bg-white/90 shadow-2xs text-[11px] font-bold text-rose-500 hover:scale-105 active:scale-95 transition-transform"
-                    title="Send love"
+                    className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/80 text-[10px] font-bold text-rose-500 hover:scale-105 active:scale-95 transition-transform border border-rose-100 shadow-2xs"
                   >
                     <Heart className="w-3 h-3 fill-rose-500 text-rose-500" />
                     <span>{b.likes}</span>
                   </button>
-                </div>
 
-                <p className="text-xs text-pastel-navy-900/90 leading-relaxed font-sans pl-1">
-                  "{b.message}"
-                </p>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
+                  <button
+                    onClick={(e) => handleDelete(b.id, e)}
+                    className="p-1 rounded-full text-gray-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Remove note"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              <p className="font-serif italic text-xs text-pastel-navy-900 leading-relaxed">
+                "{b.message}"
+              </p>
+            </motion.div>
+          );
+        })}
       </div>
     </section>
   );
